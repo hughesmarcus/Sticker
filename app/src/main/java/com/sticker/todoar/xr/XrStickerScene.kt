@@ -26,9 +26,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -79,7 +81,7 @@ import com.sticker.todoar.domain.StickerSpatialPose
 import com.sticker.todoar.domain.TodoSticker
 import com.sticker.todoar.domain.TodoStickerColor
 import com.sticker.todoar.domain.TodoStickerPriority
-import com.sticker.todoar.ui.stickers.rememberStickerItemViewModel
+import com.sticker.todoar.ui.stickers.StickerItemViewModel
 import java.util.UUID
 import java.util.Date
 import kotlinx.coroutines.CancellationException
@@ -722,11 +724,20 @@ private fun SpatialStickerCard(
     onDelete: () -> Unit
 ) {
     val existingAlarmTimeText = sticker.dueAtMillis?.toClockTimeText().orEmpty()
-    val itemViewModel = rememberStickerItemViewModel(
-        sticker = sticker,
-        nowMillis = nowMillis,
-        alarmTimeText = existingAlarmTimeText
-    )
+    val itemViewModel = remember(sticker.id) {
+        StickerItemViewModel(
+            sticker = sticker,
+            nowMillis = nowMillis,
+            alarmTimeText = existingAlarmTimeText
+        )
+    }
+    LaunchedEffect(itemViewModel, sticker, nowMillis, existingAlarmTimeText) {
+        itemViewModel.updateSticker(
+            sticker = sticker,
+            nowMillis = nowMillis,
+            alarmTimeText = existingAlarmTimeText
+        )
+    }
     val itemState by itemViewModel.uiState.collectAsStateWithLifecycle()
     val currentSticker = itemState.sticker
     val expired = itemState.isExpired

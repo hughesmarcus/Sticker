@@ -48,6 +48,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -76,9 +77,9 @@ import com.sticker.todoar.domain.TodoStickerColor
 import com.sticker.todoar.domain.TodoStickerPriority
 import com.sticker.todoar.ui.stickers.RoomPlacementRequest
 import com.sticker.todoar.ui.stickers.StickerItemUiState
+import com.sticker.todoar.ui.stickers.StickerItemViewModel
 import com.sticker.todoar.ui.stickers.StickerUiState
 import com.sticker.todoar.ui.stickers.StickerViewModel
-import com.sticker.todoar.ui.stickers.rememberStickerItemViewModel
 import com.sticker.todoar.xr.XrPlacementResult
 import com.sticker.todoar.xr.XrStickerScene
 import dagger.hilt.android.AndroidEntryPoint
@@ -916,11 +917,20 @@ private fun StickerItem(
     onDeleteSticker: (Long) -> Unit
 ) {
     val existingAlarmTimeText = sticker.dueAtMillis?.toClockTimeText().orEmpty()
-    val itemViewModel = rememberStickerItemViewModel(
-        sticker = sticker,
-        nowMillis = nowMillis,
-        alarmTimeText = existingAlarmTimeText
-    )
+    val itemViewModel = remember(sticker.id) {
+        StickerItemViewModel(
+            sticker = sticker,
+            nowMillis = nowMillis,
+            alarmTimeText = existingAlarmTimeText
+        )
+    }
+    LaunchedEffect(itemViewModel, sticker, nowMillis, existingAlarmTimeText) {
+        itemViewModel.updateSticker(
+            sticker = sticker,
+            nowMillis = nowMillis,
+            alarmTimeText = existingAlarmTimeText
+        )
+    }
     val itemState by itemViewModel.uiState.collectAsStateWithLifecycle()
     val currentSticker = itemState.sticker
     val timerText = currentSticker.timerText(itemState.nowMillis)

@@ -1,8 +1,5 @@
 package com.sticker.todoar.ui.stickers
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import com.sticker.todoar.domain.TodoSticker
 import com.sticker.todoar.domain.TodoStickerColor
 import com.sticker.todoar.domain.TodoStickerPriority
@@ -110,26 +107,3 @@ data class StickerEditRequest(
     val color: TodoStickerColor,
     val priority: TodoStickerPriority
 )
-
-@Composable
-fun rememberStickerItemViewModel(
-    sticker: TodoSticker,
-    nowMillis: Long,
-    alarmTimeText: String
-): StickerItemViewModel {
-    val viewModel = remember(sticker.id) {
-        StickerItemViewModel(
-            sticker = sticker,
-            nowMillis = nowMillis,
-            alarmTimeText = alarmTimeText
-        )
-    }
-    LaunchedEffect(viewModel, sticker, nowMillis, alarmTimeText) {
-        viewModel.updateSticker(
-            sticker = sticker,
-            nowMillis = nowMillis,
-            alarmTimeText = alarmTimeText
-        )
-    }
-    return viewModel
-}

@@ -73,6 +73,8 @@ import com.sticker.todoar.xr.XrStickerScene
 import dagger.hilt.android.AndroidEntryPoint
 import kotlin.math.max
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.xr.runtime.AnchorPersistenceMode
@@ -106,6 +108,8 @@ class MainActivity : ComponentActivity() {
     private var mainPanelScale = DEFAULT_MAIN_PANEL_SCALE
     private var toneGenerator: ToneGenerator? = null
     private var scheduledSystemAlarmAtMillis: Long? = null
+    private var alarmToneJob: Job? = null
+    private var isStartingXrSession = false
     private var alarmCollectionInitialized = false
     private var pendingAlarmLaunch = false
     private val alarmedStickerIds = mutableSetOf<Long>()
@@ -182,19 +186,25 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startXrSession() {
+        if (isStartingXrSession || xrStickerScene != null) return
+        isStartingXrSession = true
         lifecycleScope.launch {
-            val createResult = withContext(Dispatchers.IO) { Session.create(this@MainActivity) }
-            when (createResult) {
-                is SessionCreateSuccess -> configureXrSession(createResult.session)
-                is SessionCreateApkRequired -> {
-                    viewModel.onXrStatusChanged(UiText.resource(R.string.status_android_xr_runtime_required))
+            try {
+                val createResult = withContext(Dispatchers.IO) { Session.create(this@MainActivity) }
+                when (createResult) {
+                    is SessionCreateSuccess -> configureXrSession(createResult.session)
+                    is SessionCreateApkRequired -> {
+                        viewModel.onXrStatusChanged(UiText.resource(R.string.status_android_xr_runtime_required))
+                    }
+                    is SessionCreateUnsupportedDevice -> {
+                        viewModel.onXrStatusChanged(UiText.resource(R.string.status_spatial_needs_android_xr))
+                    }
+                    else -> {
+                        viewModel.onXrStatusChanged(UiText.resource(R.string.status_could_not_start_xr))
+                    }
                 }
-                is SessionCreateUnsupportedDevice -> {
-                    viewModel.onXrStatusChanged(UiText.resource(R.string.status_spatial_needs_android_xr))
-                }
-                else -> {
-                    viewModel.onXrStatusChanged(UiText.resource(R.string.status_could_not_start_xr))
-                }
+            } finally {
+                isStartingXrSession = false
             }
         }
     }
@@ -207,6 +217,7 @@ class MainActivity : ComponentActivity() {
         )
         val configureResult = withContext(Dispatchers.IO) { session.configure(config) }
         if (configureResult is SessionConfigureSuccess) {
+            clearXrReferences()
             xrSession = session
             session.scene.requestFullSpaceMode()
             makeMainPanelMovable(session)
@@ -261,6 +272,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun makeMainPanelMovable(session: Session) {
+        mainPanelMovableComponent?.let { previousComponent ->
+            runCatching { session.scene.mainPanelEntity.removeComponent(previousComponent) }
+        }
+        mainPanelMovableComponent = null
         val movableComponent = MovableComponent.createSystemMovable(session).apply {
             size = FloatSize3d(MAIN_PANEL_MOVE_WIDTH_METERS, MAIN_PANEL_MOVE_HEIGHT_METERS, MAIN_PANEL_MOVE_DEPTH_METERS)
         }
@@ -361,12 +376,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun playAlarmTone() {
+        alarmToneJob?.cancel()
         val generator = toneGenerator ?: ToneGenerator(AudioManager.STREAM_ALARM, ALARM_VOLUME_PERCENT)
             .also { toneGenerator = it }
-        lifecycleScope.launch {
+        val job = lifecycleScope.launch {
             repeat(ALARM_TONE_REPEAT_COUNT) {
                 generator.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, ALARM_TONE_MILLIS)
-                kotlinx.coroutines.delay(ALARM_TONE_GAP_MILLIS)
+                delay(ALARM_TONE_GAP_MILLIS)
+            }
+        }
+        alarmToneJob = job
+        job.invokeOnCompletion {
+            if (alarmToneJob == job) {
+                alarmToneJob = null
             }
         }
     }
@@ -435,12 +457,22 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        xrStickerScene?.clear()
-        xrStickerScene = null
-        xrSession = null
+        alarmToneJob?.cancel()
+        alarmToneJob = null
+        clearXrReferences()
         toneGenerator?.release()
         toneGenerator = null
         super.onDestroy()
+    }
+
+    private fun clearXrReferences() {
+        xrStickerScene?.clear()
+        xrStickerScene = null
+        mainPanelMovableComponent?.let { component ->
+            runCatching { xrSession?.scene?.mainPanelEntity?.removeComponent(component) }
+        }
+        mainPanelMovableComponent = null
+        xrSession = null
     }
 
     private companion object {

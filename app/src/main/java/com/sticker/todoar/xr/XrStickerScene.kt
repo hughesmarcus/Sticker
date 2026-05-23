@@ -73,12 +73,17 @@ import com.sticker.todoar.domain.StickerSpatialPose
 import com.sticker.todoar.domain.TodoSticker
 import java.util.UUID
 import java.util.Date
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
+import kotlin.coroutines.coroutineContext
 import kotlin.math.max
 
 sealed interface XrPlacementResult {
@@ -94,7 +99,7 @@ sealed interface XrPlacementResult {
 class XrStickerScene(
     private val activity: ComponentActivity,
     private val session: Session,
-    private val scope: CoroutineScope,
+    scope: CoroutineScope,
     private val onToggleSticker: (Long) -> Unit,
     private val onDeleteSticker: (Long) -> Unit,
     private val onUpdateStickerText: (Long, String) -> Unit,
@@ -109,6 +114,10 @@ class XrStickerScene(
     private val activitySpacePoses = mutableMapOf<UUID, Pose>()
     private val failedStickerLoads = mutableSetOf<Long>()
     private val promotingStickerIds = mutableSetOf<Long>()
+    private val promotionJobs = mutableMapOf<Long, Job>()
+    private val moveAnchorJobs = mutableMapOf<Long, Job>()
+    private val sceneJob = SupervisorJob(scope.coroutineContext[Job])
+    private val sceneScope = CoroutineScope(scope.coroutineContext + sceneJob)
     private val anchorPersistenceMutex = Mutex()
 
     suspend fun createPersistentAnchorAtCurrentSpot(): XrPlacementResult {
@@ -154,6 +163,7 @@ class XrStickerScene(
         nodes.keys.minus(activeIds).forEach { id ->
             removeNode(id, unpersistAnchor = true)
         }
+        failedStickerLoads.retainAll(activeIds)
 
         spatialStickers.forEach { sticker ->
             val existingNode = nodes[sticker.id]
@@ -183,11 +193,16 @@ class XrStickerScene(
         nodes.keys.toList().forEach { id ->
             removeNode(id, unpersistAnchor = false)
         }
+        promotionJobs.values.forEach { job -> job.cancel() }
+        promotionJobs.clear()
+        moveAnchorJobs.values.forEach { job -> job.cancel() }
+        moveAnchorJobs.clear()
         sessionAnchors.values.forEach { anchor -> runCatching { anchor.detach() } }
         sessionAnchors.clear()
         activitySpacePoses.clear()
         failedStickerLoads.clear()
         promotingStickerIds.clear()
+        sceneJob.cancel()
     }
 
     fun bringTemporaryNotesIntoView(): Boolean {
@@ -250,31 +265,40 @@ class XrStickerScene(
         if (node.anchorProvider !in TEMPORARY_ANCHOR_PROVIDERS) return
         if (!promotingStickerIds.add(stickerId)) return
 
-        scope.launch {
-            runCatching {
+        val job = sceneScope.launch(start = CoroutineStart.LAZY) {
+            try {
                 val trackingState = ArDevice.getInstance(session).state.value.trackingState
-                if (trackingState != TrackingState.TRACKING) return@runCatching
+                if (trackingState != TrackingState.TRACKING) return@launch
 
                 val anchor = when (node.anchorProvider) {
-                    ANCHOR_PROVIDER_SESSION_XR -> node.anchor ?: return@runCatching
+                    ANCHOR_PROVIDER_SESSION_XR -> node.anchor ?: return@launch
                     ANCHOR_PROVIDER_ACTIVITY_SPACE -> {
                         val panelPose = node.panel.getPose(Space.ACTIVITY)
                         val anchorPose = Pose(panelPose.translation)
                         when (val result = Anchor.create(session, anchorPose)) {
                             is AnchorCreateSuccess -> result.anchor
-                            else -> return@runCatching
+                            else -> return@launch
                         }
                     }
-                    else -> return@runCatching
+                    else -> return@launch
                 }
                 val uuid = anchor.persistUntilUuid()
+                if (nodes[stickerId] !== node) return@launch
                 Log.i(TAG, "Promoted temporary note $stickerId to persisted anchor $uuid")
                 onAnchorUpdated(stickerId, uuid.toString())
-            }.onFailure { error ->
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
                 Log.w(TAG, "Could not promote temporary note $stickerId to a persisted anchor", error)
+            } finally {
+                if (promotionJobs[stickerId] == coroutineContext[Job]) {
+                    promotionJobs.remove(stickerId)
+                }
+                promotingStickerIds.remove(stickerId)
             }
-            promotingStickerIds.remove(stickerId)
         }
+        promotionJobs[stickerId] = job
+        job.start()
     }
 
     private fun createNode(sticker: TodoSticker, nowMillis: Long) {
@@ -387,9 +411,18 @@ class XrStickerScene(
                         onStatus(R.string.status_moved_note)
                         return
                     }
-                    scope.launch {
-                        persistMovedAnchor(stickerId, movedAnchor)
+                    moveAnchorJobs.remove(stickerId)?.cancel()
+                    val job = sceneScope.launch(start = CoroutineStart.LAZY) {
+                        try {
+                            persistMovedAnchor(stickerId, movedAnchor)
+                        } finally {
+                            if (moveAnchorJobs[stickerId] == coroutineContext[Job]) {
+                                moveAnchorJobs.remove(stickerId)
+                            }
+                        }
                     }
+                    moveAnchorJobs[stickerId] = job
+                    job.start()
                 }
             }
         )
@@ -418,19 +451,21 @@ class XrStickerScene(
     private suspend fun persistMovedAnchor(stickerId: Long, anchor: Anchor) {
         val previousNode = nodes[stickerId]
         val previousAnchorUuid = previousNode?.anchorUuid
-        runCatching {
-            anchor.persistUntilUuid()
-        }.onSuccess { uuid ->
+        try {
+            val uuid = anchor.persistUntilUuid()
+            val currentNode = nodes[stickerId] ?: return
             Log.i(TAG, "Saved moved note $stickerId to persisted anchor $uuid")
             if (
-                previousNode?.anchorProvider == ANCHOR_PROVIDER_JETPACK_XR &&
+                currentNode.anchorProvider == ANCHOR_PROVIDER_JETPACK_XR &&
                 previousAnchorUuid != null &&
                 previousAnchorUuid != uuid
             ) {
                 runCatching { Anchor.unpersist(session, previousAnchorUuid) }
             }
             onAnchorUpdated(stickerId, uuid.toString())
-        }.onFailure {
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Throwable) {
             if (previousNode?.anchorProvider == ANCHOR_PROVIDER_JETPACK_XR) {
                 onStatus(R.string.status_could_not_save_moved_note)
             } else {
@@ -515,6 +550,7 @@ class XrStickerScene(
 
     private fun removeNode(id: Long, unpersistAnchor: Boolean) {
         val node = nodes.remove(id) ?: return
+        cancelStickerJobs(id)
         runCatching { node.panel.parent = null }
         runCatching { node.panel.removeAllComponents() }
         runCatching { node.view.disposeComposition() }
@@ -530,6 +566,12 @@ class XrStickerScene(
             activitySpacePoses.remove(node.anchorUuid)
         }
         runCatching { node.anchor?.detach() }
+    }
+
+    private fun cancelStickerJobs(id: Long) {
+        promotionJobs.remove(id)?.cancel()
+        moveAnchorJobs.remove(id)?.cancel()
+        promotingStickerIds.remove(id)
     }
 
     private var SpatialStickerNode.sticker: TodoSticker

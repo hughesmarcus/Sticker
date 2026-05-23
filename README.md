@@ -1,44 +1,78 @@
 # Sticker
 
-Sticker is an Android XR MVP for placing timed todo notes around a house.
+Sticker is an Android XR todo app for placing editable sticky notes around your house. Notes can be spawned in front of you, dragged into place, resized, edited, given a clock-based alarm, and restored after closing the app when XR anchor persistence is available.
 
-The current build targets Galaxy XR safely without the mobile Google Play Services ARCore runtime. UI is written with Jetpack Compose, todo data is stored with Room, app state is managed with MVVM, dependencies are wired with Hilt, and room placement uses Jetpack XR SceneCore plus ARCore for Jetpack XR anchors.
+The app is built for Galaxy XR-style Android XR devices with Jetpack XR APIs. It does not use the mobile Google Play Services AR runtime or `com.google.ar:core`.
 
-## What Works
+## Features
 
-- Runs as a Galaxy XR-compatible Compose Android panel.
-- Lets you type, save, and place todo stickers in room space.
-- Lets you attach no timer, 5m, 15m, 30m, or 60m timers to a sticker.
-- Creates a persisted room anchor and spatial note when you tap `Spawn Note`.
-- Renders placed stickers as separate SceneCore spatial panels attached to those anchors.
-- Shows due timers and completed timers in a sticky-note style list.
-- Lets you mark stickers done or delete them.
-- Saves todo text, completion state, timer data, and persisted anchor UUIDs in Room.
-- Avoids the mobile ARCore runtime and Google Play Services for AR.
+- Compose-only UI for the main panel and spatial note panels.
+- Spawn a note without typing first; blank notes become `New note`.
+- Drag notes around the room with SceneCore movable spatial panels.
+- Resize both placed notes and the main control panel.
+- Minimize the main panel into a small `Open` button.
+- Edit note text and alarm time from the main panel or the spatial note.
+- Use clock-based alarms such as `09:30` or `6:45 PM`.
+- Play an alarm tone only when a note becomes due.
+- Save notes, completion state, alarms, note size, anchor ids, and fallback poses in Room.
+- Persist room placement with ARCore for Jetpack XR local anchors when tracking/runtime support is available.
+- Fall back to activity-space placement and retry anchor promotion when persistent room anchoring is not ready.
+
+## Architecture
+
+Sticker follows the Android architecture recommendations:
+
+- `ui/` contains Compose screens, Activity glue, and ViewModels.
+- `xr/` isolates Jetpack XR, SceneCore, anchors, and spatial entities.
+- `data/` contains the Room-backed repository.
+- `domain/` contains app models such as todo notes and spatial poses.
+- Hilt provides the database and repository dependencies.
+- ViewModels expose immutable UI state and receive UI events.
+- People-facing text lives in `app/src/main/res/values/strings.xml`.
+
+## Requirements
+
+- Android Studio with Android SDK Platform 36 installed.
+- JDK 17 or newer.
+- A Galaxy XR / Android XR device or compatible Android XR emulator.
+- Scene understanding permission granted at runtime.
+
+## Build And Test
+
+From the project root:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest :app:assembleDebug
+```
+
+The debug APK is created at:
+
+```text
+app\build\outputs\apk\debug\app-debug.apk
+```
 
 ## Run
 
-1. Open this folder in Android Studio.
+Using Android Studio:
+
+1. Open the project.
 2. Let Gradle sync.
-3. Connect a Galaxy XR device or Android XR emulator.
+3. Select a connected Android XR device.
 4. Run the `app` configuration.
 5. Grant scene understanding permission when prompted.
 
-If Android Studio asks for SDK packages, install Android SDK Platform 36 and the matching build tools.
+Using the bundled Android CLI wrapper:
 
-## Android CLI
-
-This project includes a Windows wrapper for Google's Android CLI:
-
-```cmd
-tools\android.cmd info
-tools\android.cmd describe --project_dir="C:\Users\Marcus Hughes\AndroidStudioProjects\Sticker"
+```powershell
+.\tools\android.cmd info
+.\tools\android.cmd describe --project_dir="$PWD"
+.\tools\android.cmd run --device="<device-serial>" --apks="app\build\outputs\apk\debug\app-debug.apk"
 ```
 
-See `docs\android-cli.md` for setup notes and common commands.
+## Notes On Persistence
 
-## Next Milestones
+Room keeps the todo data. Jetpack XR local anchor persistence keeps room placement when available. Because XR tracking can be unavailable at startup or in unsupported spaces, each note also stores a fallback activity-space pose so the app can show the note again and try to save a stronger room anchor later.
 
-- Add richer placement controls for wall/table/floor preference.
-- Add a room map or room zone labels for filtering placed notes.
-- Add room zones, due dates, and recurring chores.
+## Local-Only Files
+
+Local agent instructions, private docs, SDK paths, build outputs, env files, signing keys, and service credentials are ignored by Git.

@@ -1,6 +1,7 @@
 # Local project instructions
 AGENTS.md
 **/AGENTS.md
+docs/
 
 # Local IDE and machine state
 .gradle/

@@ -26,12 +26,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -48,6 +45,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
@@ -81,6 +79,7 @@ import com.sticker.todoar.domain.StickerSpatialPose
 import com.sticker.todoar.domain.TodoSticker
 import com.sticker.todoar.domain.TodoStickerColor
 import com.sticker.todoar.domain.TodoStickerPriority
+import com.sticker.todoar.ui.stickers.rememberStickerItemViewModel
 import java.util.UUID
 import java.util.Date
 import kotlinx.coroutines.CancellationException
@@ -722,41 +721,33 @@ private fun SpatialStickerCard(
     onDone: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val expired = sticker.isTimerExpired(nowMillis)
-    val timerText = sticker.timerText(nowMillis)
+    val existingAlarmTimeText = sticker.dueAtMillis?.toClockTimeText().orEmpty()
+    val itemViewModel = rememberStickerItemViewModel(
+        sticker = sticker,
+        nowMillis = nowMillis,
+        alarmTimeText = existingAlarmTimeText
+    )
+    val itemState by itemViewModel.uiState.collectAsStateWithLifecycle()
+    val currentSticker = itemState.sticker
+    val expired = itemState.isExpired
+    val timerText = currentSticker.timerText(itemState.nowMillis)
     val metadataText = listOfNotNull(
         timerText,
-        sticker.priority.labelText(),
-        sticker.pinQuality.labelText()
+        currentSticker.priority.labelText(),
+        currentSticker.pinQuality.labelText()
     ).joinToString(stringResource(R.string.metadata_separator))
-    val sizeScale = sticker.normalizedSizeScale()
-    var editing by remember(sticker.id) { mutableStateOf(false) }
-    var editingText by remember(sticker.id) { mutableStateOf(sticker.text) }
-    val existingAlarmTimeText = sticker.dueAtMillis?.toClockTimeText().orEmpty()
-    var editingAlarmTimeText by remember(sticker.id, existingAlarmTimeText) {
-        mutableStateOf(existingAlarmTimeText)
-    }
-    var selectedColor by remember(sticker.id) { mutableStateOf(sticker.color) }
-    var selectedPriority by remember(sticker.id) { mutableStateOf(sticker.priority) }
+    val sizeScale = currentSticker.normalizedSizeScale()
+    val currentAlarmTimeText = currentSticker.dueAtMillis?.toClockTimeText().orEmpty()
     val defaultNoteText = stringResource(R.string.default_note_text)
-
-    LaunchedEffect(sticker.text, sticker.dueAtMillis, sticker.color, sticker.priority, editing) {
-        if (!editing) {
-            editingText = sticker.text
-            editingAlarmTimeText = existingAlarmTimeText
-            selectedColor = sticker.color
-            selectedPriority = sticker.priority
-        }
-    }
 
     Card(
         modifier = Modifier.fillMaxSize(),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
             containerColor = when {
-                sticker.done -> Color(0xFFDDE1DA)
+                currentSticker.done -> Color(0xFFDDE1DA)
                 expired -> Color(0xFFFFC7B8)
-                else -> sticker.color.backgroundColor()
+                else -> currentSticker.color.backgroundColor()
             }
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -767,31 +758,31 @@ private fun SpatialStickerCard(
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            if (editing) {
+            if (itemState.isEditing) {
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     TextField(
-                        value = editingText,
-                        onValueChange = { editingText = it },
+                        value = itemState.editingText,
+                        onValueChange = itemViewModel::onEditingTextChanged,
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         label = { Text(stringResource(R.string.label_todo)) }
                     )
                     TextField(
-                        value = editingAlarmTimeText,
-                        onValueChange = { editingAlarmTimeText = it },
+                        value = itemState.editingAlarmTimeText,
+                        onValueChange = itemViewModel::onEditingAlarmTimeChanged,
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         label = { Text(stringResource(R.string.label_alarm_time)) },
                         placeholder = { Text(stringResource(R.string.placeholder_alarm_time)) }
                     )
                     SpatialStickerStyleControls(
-                        selectedColor = selectedColor,
-                        selectedPriority = selectedPriority,
-                        onColorSelected = { selectedColor = it },
-                        onPrioritySelected = { selectedPriority = it }
+                        selectedColor = itemState.selectedColor,
+                        selectedPriority = itemState.selectedPriority,
+                        onColorSelected = itemViewModel::onEditingColorChanged,
+                        onPrioritySelected = itemViewModel::onEditingPriorityChanged
                     )
                 }
             } else {
@@ -800,14 +791,14 @@ private fun SpatialStickerCard(
                         text = buildAnnotatedString {
                             withStyle(
                                 SpanStyle(
-                                    textDecoration = if (sticker.done) {
+                                    textDecoration = if (currentSticker.done) {
                                         TextDecoration.LineThrough
                                     } else {
                                         TextDecoration.None
                                     }
                                 )
                             ) {
-                                append(sticker.text)
+                                append(currentSticker.text)
                             }
                         },
                         color = Color(0xFF2C3028),
@@ -847,7 +838,7 @@ private fun SpatialStickerCard(
                     }
                 }
             }
-            if (!editing) {
+            if (!itemState.isEditing) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -878,26 +869,20 @@ private fun SpatialStickerCard(
                 horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (editing) {
+                if (itemState.isEditing) {
                     OutlinedButton(
                         modifier = Modifier.weight(1f),
-                        onClick = {
-                            editingText = sticker.text
-                            editingAlarmTimeText = existingAlarmTimeText
-                            selectedColor = sticker.color
-                            selectedPriority = sticker.priority
-                            editing = false
-                        }
+                        onClick = { itemViewModel.cancelEditing(currentAlarmTimeText) }
                     ) {
                         Text(stringResource(R.string.action_cancel), fontSize = 12.sp)
                     }
                     Button(
                         modifier = Modifier.weight(1f),
                         onClick = {
-                            onUpdateText(editingText.ifBlank { defaultNoteText })
-                            onUpdateAlarm(editingAlarmTimeText)
-                            onUpdateStyle(selectedColor, selectedPriority)
-                            editing = false
+                            val request = itemViewModel.saveEditing(defaultNoteText)
+                            onUpdateText(request.text)
+                            onUpdateAlarm(request.alarmTimeText)
+                            onUpdateStyle(request.color, request.priority)
                         }
                     ) {
                         Text(stringResource(R.string.action_save), fontSize = 12.sp)
@@ -905,10 +890,7 @@ private fun SpatialStickerCard(
                 } else {
                     OutlinedButton(
                         modifier = Modifier.weight(1f),
-                        onClick = {
-                            editingText = sticker.text
-                            editing = true
-                        }
+                        onClick = { itemViewModel.startEditing(currentAlarmTimeText) }
                     ) {
                         Text(stringResource(R.string.action_edit), fontSize = 12.sp)
                     }
@@ -918,7 +900,7 @@ private fun SpatialStickerCard(
                     ) {
                         Text(
                             stringResource(
-                                if (sticker.done) R.string.action_undo else R.string.action_done
+                                if (currentSticker.done) R.string.action_undo else R.string.action_done
                             ),
                             fontSize = 12.sp
                         )

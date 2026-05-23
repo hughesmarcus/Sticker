@@ -48,7 +48,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -76,8 +75,10 @@ import com.sticker.todoar.domain.TodoSticker
 import com.sticker.todoar.domain.TodoStickerColor
 import com.sticker.todoar.domain.TodoStickerPriority
 import com.sticker.todoar.ui.stickers.RoomPlacementRequest
+import com.sticker.todoar.ui.stickers.StickerItemUiState
 import com.sticker.todoar.ui.stickers.StickerUiState
 import com.sticker.todoar.ui.stickers.StickerViewModel
+import com.sticker.todoar.ui.stickers.rememberStickerItemViewModel
 import com.sticker.todoar.xr.XrPlacementResult
 import com.sticker.todoar.xr.XrStickerScene
 import dagger.hilt.android.AndroidEntryPoint
@@ -553,8 +554,6 @@ private fun StickerScreen(
     onToggleSticker: (Long) -> Unit,
     onDeleteSticker: (Long) -> Unit
 ) {
-    var editingSticker by remember { mutableStateOf<TodoSticker?>(null) }
-
     if (mainPanelMinimized) {
         MinimizedStickerPanel(
             onRestore = { onMainPanelMinimizedChange(false) }
@@ -632,23 +631,12 @@ private fun StickerScreen(
                 isLoading = state.isLoading,
                 stickers = state.stickers,
                 nowMillis = state.nowMillis,
-                onEditSticker = { sticker -> editingSticker = sticker },
+                onEditSticker = onEditSticker,
                 onSnoozeSticker = onSnoozeSticker,
                 onToggleSticker = onToggleSticker,
                 onDeleteSticker = onDeleteSticker
             )
         }
-    }
-
-    editingSticker?.let { sticker ->
-        EditStickerDialog(
-            sticker = sticker,
-            onDismiss = { editingSticker = null },
-            onSave = { text, alarmTimeText, color, priority ->
-                onEditSticker(sticker.id, text, alarmTimeText, color, priority)
-                editingSticker = null
-            }
-        )
     }
 }
 
@@ -875,7 +863,7 @@ private fun StickerList(
     isLoading: Boolean,
     stickers: List<TodoSticker>,
     nowMillis: Long,
-    onEditSticker: (TodoSticker) -> Unit,
+    onEditSticker: (Long, String, String, TodoStickerColor, TodoStickerPriority) -> Unit,
     onSnoozeSticker: (Long, Int) -> Unit,
     onToggleSticker: (Long) -> Unit,
     onDeleteSticker: (Long) -> Unit
@@ -900,7 +888,7 @@ private fun StickerList(
             StickerItem(
                 sticker = sticker,
                 nowMillis = nowMillis,
-                onEditSticker = { onEditSticker(sticker) },
+                onEditSticker = onEditSticker,
                 onSnoozeSticker = onSnoozeSticker,
                 onToggleSticker = onToggleSticker,
                 onDeleteSticker = onDeleteSticker
@@ -913,26 +901,35 @@ private fun StickerList(
 private fun StickerItem(
     sticker: TodoSticker,
     nowMillis: Long,
-    onEditSticker: () -> Unit,
+    onEditSticker: (Long, String, String, TodoStickerColor, TodoStickerPriority) -> Unit,
     onSnoozeSticker: (Long, Int) -> Unit,
     onToggleSticker: (Long) -> Unit,
     onDeleteSticker: (Long) -> Unit
 ) {
-    val timerText = sticker.timerText(nowMillis)
-    val placementText = sticker.placementText()
-    val priorityText = sticker.priority.labelText()
+    val existingAlarmTimeText = sticker.dueAtMillis?.toClockTimeText().orEmpty()
+    val itemViewModel = rememberStickerItemViewModel(
+        sticker = sticker,
+        nowMillis = nowMillis,
+        alarmTimeText = existingAlarmTimeText
+    )
+    val itemState by itemViewModel.uiState.collectAsStateWithLifecycle()
+    val currentSticker = itemState.sticker
+    val timerText = currentSticker.timerText(itemState.nowMillis)
+    val placementText = currentSticker.placementText()
+    val priorityText = currentSticker.priority.labelText()
     val metadataText = listOfNotNull(timerText, priorityText, placementText)
         .joinToString(stringResource(R.string.metadata_separator))
-    val expired = sticker.isTimerExpired(nowMillis)
+    val expired = itemState.isExpired
+    val currentAlarmTimeText = currentSticker.dueAtMillis?.toClockTimeText().orEmpty()
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
             containerColor = when {
-                sticker.done -> Color(0xFFDDE1DA)
+                currentSticker.done -> Color(0xFFDDE1DA)
                 expired -> Color(0xFFFFC7B8)
-                else -> sticker.color.backgroundColor()
+                else -> currentSticker.color.backgroundColor()
             }
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -948,14 +945,14 @@ private fun StickerItem(
                     text = buildAnnotatedString {
                         withStyle(
                             SpanStyle(
-                                textDecoration = if (sticker.done) {
+                                textDecoration = if (currentSticker.done) {
                                     TextDecoration.LineThrough
                                 } else {
                                     TextDecoration.None
                                 }
                             )
                         ) {
-                            append(sticker.text)
+                            append(currentSticker.text)
                         }
                     },
                     color = Color(0xFF2C3028),
@@ -978,13 +975,13 @@ private fun StickerItem(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedButton(
-                            onClick = { onSnoozeSticker(sticker.id, SNOOZE_SHORT_MINUTES) },
+                            onClick = { onSnoozeSticker(currentSticker.id, SNOOZE_SHORT_MINUTES) },
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(stringResource(R.string.action_snooze_5))
                         }
                         OutlinedButton(
-                            onClick = { onSnoozeSticker(sticker.id, SNOOZE_LONG_MINUTES) },
+                            onClick = { onSnoozeSticker(currentSticker.id, SNOOZE_LONG_MINUTES) },
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(stringResource(R.string.action_snooze_15))
@@ -994,97 +991,108 @@ private fun StickerItem(
             }
             Spacer(modifier = Modifier.width(10.dp))
             OutlinedButton(
-                onClick = onEditSticker,
+                onClick = { itemViewModel.startEditing(currentAlarmTimeText) },
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text(stringResource(R.string.action_edit))
             }
             Spacer(modifier = Modifier.width(8.dp))
             OutlinedButton(
-                onClick = { onToggleSticker(sticker.id) },
+                onClick = { onToggleSticker(currentSticker.id) },
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text(
                     stringResource(
-                        if (sticker.done) R.string.action_undo else R.string.action_done
+                        if (currentSticker.done) R.string.action_undo else R.string.action_done
                     )
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
             OutlinedButton(
-                onClick = { onDeleteSticker(sticker.id) },
+                onClick = { onDeleteSticker(currentSticker.id) },
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text(stringResource(R.string.action_delete))
             }
         }
     }
+
+    if (itemState.isEditing) {
+        val defaultNoteText = stringResource(R.string.default_note_text)
+        EditStickerDialog(
+            state = itemState,
+            onTextChanged = itemViewModel::onEditingTextChanged,
+            onAlarmTimeChanged = itemViewModel::onEditingAlarmTimeChanged,
+            onColorChanged = itemViewModel::onEditingColorChanged,
+            onPriorityChanged = itemViewModel::onEditingPriorityChanged,
+            onDismiss = { itemViewModel.cancelEditing(currentAlarmTimeText) },
+            onSave = {
+                val request = itemViewModel.saveEditing(defaultNoteText)
+                onEditSticker(
+                    request.id,
+                    request.text,
+                    request.alarmTimeText,
+                    request.color,
+                    request.priority
+                )
+            }
+        )
+    }
 }
 
 @Composable
 private fun EditStickerDialog(
-    sticker: TodoSticker,
+    state: StickerItemUiState,
+    onTextChanged: (String) -> Unit,
+    onAlarmTimeChanged: (String) -> Unit,
+    onColorChanged: (TodoStickerColor) -> Unit,
+    onPriorityChanged: (TodoStickerPriority) -> Unit,
     onDismiss: () -> Unit,
-    onSave: (String, String, TodoStickerColor, TodoStickerPriority) -> Unit
+    onSave: () -> Unit
 ) {
-    var text by remember(sticker.id) { mutableStateOf(sticker.text) }
-    val existingAlarmTimeText = sticker.dueAtMillis?.toClockTimeText().orEmpty()
-    var alarmTimeText by remember(sticker.id, existingAlarmTimeText) {
-        mutableStateOf(existingAlarmTimeText)
-    }
-    var selectedColor by remember(sticker.id) { mutableStateOf(sticker.color) }
-    var selectedPriority by remember(sticker.id) { mutableStateOf(sticker.priority) }
-    val defaultNoteText = stringResource(R.string.default_note_text)
-
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.title_edit_note)) },
         text = {
             Column {
                 TextField(
-                    value = text,
-                    onValueChange = { text = it },
+                    value = state.editingText,
+                    onValueChange = onTextChanged,
                     label = { Text(stringResource(R.string.label_todo)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(
-                        onDone = {
-                            onSave(text.ifBlank { defaultNoteText }, alarmTimeText, selectedColor, selectedPriority)
-                        }
+                        onDone = { onSave() }
                     )
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 TextField(
-                    value = alarmTimeText,
-                    onValueChange = { alarmTimeText = it },
+                    value = state.editingAlarmTimeText,
+                    onValueChange = onAlarmTimeChanged,
                     label = { Text(stringResource(R.string.label_alarm_time)) },
                     placeholder = { Text(stringResource(R.string.placeholder_alarm_time)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(
-                        onDone = {
-                            onSave(text.ifBlank { defaultNoteText }, alarmTimeText, selectedColor, selectedPriority)
-                        }
+                        onDone = { onSave() }
                     )
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 StickerStyleControls(
-                    selectedColor = selectedColor,
-                    selectedPriority = selectedPriority,
-                    onColorSelected = { selectedColor = it },
-                    onPrioritySelected = { selectedPriority = it }
+                    selectedColor = state.selectedColor,
+                    selectedPriority = state.selectedPriority,
+                    onColorSelected = onColorChanged,
+                    onPrioritySelected = onPriorityChanged
                 )
                 Spacer(modifier = Modifier.height(10.dp))
-                OutlinedButton(onClick = { alarmTimeText = "" }) {
+                OutlinedButton(onClick = { onAlarmTimeChanged("") }) {
                     Text(stringResource(R.string.action_no_alarm))
                 }
             }
         },
         confirmButton = {
             Button(
-                onClick = {
-                    onSave(text.ifBlank { defaultNoteText }, alarmTimeText, selectedColor, selectedPriority)
-                }
+                onClick = onSave
             ) {
                 Text(stringResource(R.string.action_save))
             }

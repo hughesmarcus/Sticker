@@ -54,6 +54,7 @@ class StickerViewModel @Inject constructor(
         clock
     ) { stickers, editor, nowMillis ->
         StickerUiState(
+            isLoading = false,
             draftText = editor.draftText,
             selectedAlarmTimeText = editor.selectedAlarmTimeText,
             selectedColor = editor.selectedColor,
@@ -70,7 +71,9 @@ class StickerViewModel @Inject constructor(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = StickerUiState()
+        initialValue = StickerUiState(
+            selectedAlarmTimeText = selectedAlarmTimeText.value
+        )
     )
 
     fun onDraftChanged(text: String) {

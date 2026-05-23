@@ -37,6 +37,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -368,6 +369,8 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
+                    if (state.isLoading) return@collect
+
                     val expiredAlarmIds = state.stickers
                         .filter { sticker -> sticker.isTimerExpired(state.nowMillis) }
                         .map { sticker -> sticker.id }
@@ -465,6 +468,8 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
+                    if (state.isLoading) return@collect
+
                     xrStickerScene?.syncStickers(
                         stickers = state.stickers,
                         nowMillis = state.nowMillis
@@ -624,6 +629,7 @@ private fun StickerScreen(
                 fontSize = 15.sp
             )
             StickerList(
+                isLoading = state.isLoading,
                 stickers = state.stickers,
                 nowMillis = state.nowMillis,
                 onEditSticker = { sticker -> editingSticker = sticker },
@@ -866,6 +872,7 @@ private fun AlarmTimeEditor(
 
 @Composable
 private fun StickerList(
+    isLoading: Boolean,
     stickers: List<TodoSticker>,
     nowMillis: Long,
     onEditSticker: (TodoSticker) -> Unit,
@@ -873,6 +880,11 @@ private fun StickerList(
     onToggleSticker: (Long) -> Unit,
     onDeleteSticker: (Long) -> Unit
 ) {
+    if (isLoading) {
+        LoadingStickerState()
+        return
+    }
+
     if (stickers.isEmpty()) {
         EmptyStickerState()
         return
@@ -1083,6 +1095,29 @@ private fun EditStickerDialog(
             }
         }
     )
+}
+
+@Composable
+private fun LoadingStickerState() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(140.dp)
+            .background(Color.White, RoundedCornerShape(8.dp)),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(32.dp),
+            color = Color(0xFF2F6B5F)
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = stringResource(R.string.loading_stickers),
+            color = Color(0xFF5A6259),
+            fontSize = 17.sp
+        )
+    }
 }
 
 @Composable

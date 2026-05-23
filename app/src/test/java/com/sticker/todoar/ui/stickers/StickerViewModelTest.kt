@@ -24,6 +24,22 @@ class StickerViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
+    fun initialStateShowsLoadingUntilStickersEmit() = runTest {
+        val viewModel = StickerViewModel(FakeTodoStickerRepository())
+
+        assertEquals(true, viewModel.uiState.value.isLoading)
+        assertEquals(R.string.status_loading_stickers, viewModel.uiState.value.statusResId())
+
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+        runCurrent()
+
+        assertEquals(false, viewModel.uiState.value.isLoading)
+        assertEquals(R.string.status_ready, viewModel.uiState.value.statusResId())
+    }
+
+    @Test
     fun blankSpawnRequestUsesFallbackNoteText() = runTest {
         val viewModel = StickerViewModel(FakeTodoStickerRepository())
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {

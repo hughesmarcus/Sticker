@@ -27,6 +27,7 @@
     <string name="timer_complete">Timer complete</string>
     <string name="timer_due">Timer due</string>
     <string name="timer_due_in">Due in %1$s</string>
+    <string name="loading_stickers">Loading stickers</string>
     <string name="alarm_complete">Alarm complete</string>
     <string name="alarm_due">Alarm due</string>
     <string name="alarm_due_at_in">Alarm at %1$s (%2$s)</string>
@@ -49,6 +50,7 @@
     <string name="note_color_blue">Blue</string>
     <string name="note_color_green">Green</string>
     <string name="note_color_pink">Pink</string>
+    <string name="status_loading_stickers">Loading stickers</string>
     <string name="status_ready">Ready</string>
     <string name="status_add_todo_first">Add a todo first</string>
     <string name="status_placing_in_room">Placing in room</string>

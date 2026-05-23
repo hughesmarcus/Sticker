@@ -4,6 +4,8 @@ import com.sticker.todoar.data.db.TodoStickerDao
 import com.sticker.todoar.data.db.TodoStickerEntity
 import com.sticker.todoar.domain.StickerSpatialPose
 import com.sticker.todoar.domain.TodoSticker
+import com.sticker.todoar.domain.TodoStickerColor
+import com.sticker.todoar.domain.TodoStickerPriority
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
@@ -19,6 +21,8 @@ interface TodoStickerRepository {
         placedAtMillis: Long? = null,
         anchorProvider: String? = null,
         anchorId: String? = null,
+        color: TodoStickerColor = TodoStickerColor.DEFAULT,
+        priority: TodoStickerPriority = TodoStickerPriority.DEFAULT,
         activitySpacePose: StickerSpatialPose? = null
     ): TodoSticker
 
@@ -45,6 +49,14 @@ interface TodoStickerRepository {
         sizeScale: Float
     )
 
+    suspend fun updateStyle(
+        id: Long,
+        color: TodoStickerColor,
+        priority: TodoStickerPriority
+    )
+
+    suspend fun markAlarmTriggered(id: Long)
+
     suspend fun updateActivitySpacePose(
         id: Long,
         pose: StickerSpatialPose
@@ -67,6 +79,8 @@ class DefaultTodoStickerRepository @Inject constructor(
         placedAtMillis: Long?,
         anchorProvider: String?,
         anchorId: String?,
+        color: TodoStickerColor,
+        priority: TodoStickerPriority,
         activitySpacePose: StickerSpatialPose?
     ): TodoSticker {
         val now = System.currentTimeMillis()
@@ -77,6 +91,8 @@ class DefaultTodoStickerRepository @Inject constructor(
             placedAtMillis = placedAtMillis,
             anchorProvider = anchorProvider,
             anchorId = anchorId,
+            colorKey = color.key,
+            priority = priority.value,
             activitySpaceTranslationX = activitySpacePose?.translationX,
             activitySpaceTranslationY = activitySpacePose?.translationY,
             activitySpaceTranslationZ = activitySpacePose?.translationZ,
@@ -114,6 +130,20 @@ class DefaultTodoStickerRepository @Inject constructor(
 
     override suspend fun updateSizeScale(id: Long, sizeScale: Float) {
         dao.updateSizeScale(id, sizeScale, System.currentTimeMillis())
+    }
+
+    override suspend fun updateStyle(
+        id: Long,
+        color: TodoStickerColor,
+        priority: TodoStickerPriority
+    ) {
+        dao.updateStyle(id, color.key, priority.value, System.currentTimeMillis())
+    }
+
+    override suspend fun markAlarmTriggered(id: Long) {
+        val sticker = dao.getById(id) ?: return
+        val dueAtMillis = sticker.dueAtMillis ?: return
+        dao.updateLastAlarmTriggered(id, dueAtMillis, System.currentTimeMillis())
     }
 
     override suspend fun updateActivitySpacePose(id: Long, pose: StickerSpatialPose) {

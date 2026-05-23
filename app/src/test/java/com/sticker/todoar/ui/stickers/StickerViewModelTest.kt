@@ -4,6 +4,8 @@ import com.sticker.todoar.R
 import com.sticker.todoar.data.TodoStickerRepository
 import com.sticker.todoar.domain.StickerSpatialPose
 import com.sticker.todoar.domain.TodoSticker
+import com.sticker.todoar.domain.TodoStickerColor
+import com.sticker.todoar.domain.TodoStickerPriority
 import com.sticker.todoar.ui.UiText
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -64,6 +66,8 @@ class StickerViewModelTest {
             dueAtMillis = request.dueAtMillis,
             anchorProvider = "jetpack_xr_anchor",
             anchorId = "anchor-123",
+            color = request.color,
+            priority = request.priority,
             activitySpacePose = StickerSpatialPose(
                 translationX = 0.1f,
                 translationY = 0.2f,
@@ -99,6 +103,8 @@ class StickerViewModelTest {
             dueAtMillis = request.dueAtMillis,
             anchorProvider = "jetpack_xr_anchor",
             anchorId = "anchor-123",
+            color = request.color,
+            priority = request.priority,
             activitySpacePose = null
         )
         runCurrent()
@@ -124,17 +130,27 @@ class StickerViewModelTest {
             dueAtMillis = request.dueAtMillis,
             anchorProvider = "jetpack_xr_anchor",
             anchorId = "anchor-123",
+            color = request.color,
+            priority = request.priority,
             activitySpacePose = null
         )
         runCurrent()
 
         val id = viewModel.uiState.value.stickers.single().id
-        viewModel.onStickerEdited(id, "New text", "")
+        viewModel.onStickerEdited(
+            id,
+            "New text",
+            "",
+            TodoStickerColor.GREEN,
+            TodoStickerPriority.HIGH
+        )
         runCurrent()
 
         val sticker = viewModel.uiState.value.stickers.single()
         assertEquals("New text", sticker.text)
         assertEquals(null, sticker.dueAtMillis)
+        assertEquals(TodoStickerColor.GREEN, sticker.color)
+        assertEquals(TodoStickerPriority.HIGH, sticker.priority)
     }
 
     @Test
@@ -150,6 +166,8 @@ class StickerViewModelTest {
             dueAtMillis = request.dueAtMillis,
             anchorProvider = "jetpack_xr_anchor",
             anchorId = "anchor-123",
+            color = request.color,
+            priority = request.priority,
             activitySpacePose = null
         )
         runCurrent()
@@ -175,6 +193,8 @@ class StickerViewModelTest {
             dueAtMillis = request.dueAtMillis,
             anchorProvider = "jetpack_xr_activity_space",
             anchorId = "activity-123",
+            color = request.color,
+            priority = request.priority,
             activitySpacePose = null
         )
         runCurrent()
@@ -199,6 +219,91 @@ class StickerViewModelTest {
         assertEquals(-1.1f, pose!!.translationZ, 0.001f)
     }
 
+    @Test
+    fun draftStyleIsSavedOnRoomPlacement() = runTest {
+        val repository = FakeTodoStickerRepository()
+        val viewModel = StickerViewModel(repository)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+
+        viewModel.onDraftColorChanged(TodoStickerColor.PINK)
+        viewModel.onDraftPriorityChanged(TodoStickerPriority.HIGH)
+        val request = viewModel.onPlaceRequested("Priority note", "New note")
+        viewModel.onRoomPlacementSucceeded(
+            text = request!!.text,
+            dueAtMillis = request.dueAtMillis,
+            anchorProvider = "jetpack_xr_anchor",
+            anchorId = "anchor-123",
+            color = request.color,
+            priority = request.priority,
+            activitySpacePose = null
+        )
+        runCurrent()
+
+        val sticker = viewModel.uiState.value.stickers.single()
+        assertEquals(TodoStickerColor.PINK, sticker.color)
+        assertEquals(TodoStickerPriority.HIGH, sticker.priority)
+    }
+
+    @Test
+    fun snoozeMovesAlarmIntoTheFuture() = runTest {
+        val repository = FakeTodoStickerRepository()
+        val viewModel = StickerViewModel(repository)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+        val request = viewModel.onPlaceRequested("Snooze me", "New note")
+        viewModel.onRoomPlacementSucceeded(
+            text = request!!.text,
+            dueAtMillis = System.currentTimeMillis() - 1_000L,
+            anchorProvider = "jetpack_xr_anchor",
+            anchorId = "anchor-123",
+            color = request.color,
+            priority = request.priority,
+            activitySpacePose = null
+        )
+        runCurrent()
+
+        val id = viewModel.uiState.value.stickers.single().id
+        val beforeSnooze = System.currentTimeMillis()
+        viewModel.onStickerSnoozed(id, 5)
+        runCurrent()
+
+        val sticker = viewModel.uiState.value.stickers.single()
+        assertNotNull(sticker.dueAtMillis)
+        assertEquals(true, sticker.dueAtMillis!! >= beforeSnooze + 5 * 60_000L)
+        assertEquals(R.string.status_alarm_snoozed, viewModel.uiState.value.statusResId())
+    }
+
+    @Test
+    fun alarmTriggeredMarksCurrentDueTime() = runTest {
+        val repository = FakeTodoStickerRepository()
+        val viewModel = StickerViewModel(repository)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+        val request = viewModel.onPlaceRequested("Alarm me", "New note")
+        val dueAtMillis = System.currentTimeMillis() - 1_000L
+        viewModel.onRoomPlacementSucceeded(
+            text = request!!.text,
+            dueAtMillis = dueAtMillis,
+            anchorProvider = "jetpack_xr_anchor",
+            anchorId = "anchor-123",
+            color = request.color,
+            priority = request.priority,
+            activitySpacePose = null
+        )
+        runCurrent()
+
+        val id = viewModel.uiState.value.stickers.single().id
+        viewModel.onAlarmTriggered(id, "Alarm me")
+        runCurrent()
+
+        assertEquals(dueAtMillis, viewModel.uiState.value.stickers.single().lastAlarmTriggeredAtMillis)
+        assertEquals(R.string.status_alarm_triggered, viewModel.uiState.value.statusResId())
+    }
+
     private fun StickerUiState.statusResId(): Int =
         (status as UiText.Resource).resId
 }
@@ -216,6 +321,8 @@ private class FakeTodoStickerRepository : TodoStickerRepository {
         placedAtMillis: Long?,
         anchorProvider: String?,
         anchorId: String?,
+        color: TodoStickerColor,
+        priority: TodoStickerPriority,
         activitySpacePose: StickerSpatialPose?
     ): TodoSticker {
         val now = System.currentTimeMillis()
@@ -229,6 +336,9 @@ private class FakeTodoStickerRepository : TodoStickerRepository {
             anchorProvider = anchorProvider,
             anchorId = anchorId,
             sizeScale = 1f,
+            color = color,
+            priority = priority,
+            lastAlarmTriggeredAtMillis = null,
             activitySpacePose = activitySpacePose,
             createdAtMillis = now,
             updatedAtMillis = now
@@ -260,7 +370,35 @@ private class FakeTodoStickerRepository : TodoStickerRepository {
     override suspend fun updateAlarm(id: Long, dueAtMillis: Long?) {
         stickers.value = stickers.value.map { sticker ->
             if (sticker.id == id) {
-                sticker.copy(dueAtMillis = dueAtMillis, timerDurationMillis = null)
+                sticker.copy(
+                    dueAtMillis = dueAtMillis,
+                    timerDurationMillis = null,
+                    lastAlarmTriggeredAtMillis = null
+                )
+            } else {
+                sticker
+            }
+        }
+    }
+
+    override suspend fun updateStyle(
+        id: Long,
+        color: TodoStickerColor,
+        priority: TodoStickerPriority
+    ) {
+        stickers.value = stickers.value.map { sticker ->
+            if (sticker.id == id) {
+                sticker.copy(color = color, priority = priority)
+            } else {
+                sticker
+            }
+        }
+    }
+
+    override suspend fun markAlarmTriggered(id: Long) {
+        stickers.value = stickers.value.map { sticker ->
+            if (sticker.id == id && sticker.dueAtMillis != null) {
+                sticker.copy(lastAlarmTriggeredAtMillis = sticker.dueAtMillis)
             } else {
                 sticker
             }

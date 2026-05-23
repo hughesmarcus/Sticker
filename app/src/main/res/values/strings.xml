@@ -2,6 +2,8 @@
     <string name="app_name">Sticker</string>
     <string name="label_todo">Todo</string>
     <string name="label_alarm_time">Alarm time</string>
+    <string name="label_note_color">Note color</string>
+    <string name="label_priority">Priority</string>
     <string name="placeholder_alarm_time">HH:mm</string>
     <string name="default_note_text">New note</string>
     <string name="action_save">Save</string>
@@ -17,6 +19,8 @@
     <string name="action_delete">Delete</string>
     <string name="action_size_smaller">Smaller</string>
     <string name="action_size_larger">Larger</string>
+    <string name="action_snooze_5">Snooze 5m</string>
+    <string name="action_snooze_15">Snooze 15m</string>
     <string name="timer_no_timer">No timer</string>
     <string name="timer_minutes_short">%1$dm</string>
     <string name="empty_stickers">No saved stickers yet</string>
@@ -32,6 +36,19 @@
     <string name="placement_in_room">Placed in room</string>
     <string name="placement_session_room">Placed for this session</string>
     <string name="placement_anchored_in_xr">Anchored in XR</string>
+    <string name="pin_quality_room">Pinned: room</string>
+    <string name="pin_quality_session">Pinned: session</string>
+    <string name="pin_quality_fallback">Pin: fallback</string>
+    <string name="priority_low">Low</string>
+    <string name="priority_normal">Normal</string>
+    <string name="priority_high">High</string>
+    <string name="priority_low_short">L</string>
+    <string name="priority_normal_short">N</string>
+    <string name="priority_high_short">H</string>
+    <string name="note_color_yellow">Yellow</string>
+    <string name="note_color_blue">Blue</string>
+    <string name="note_color_green">Green</string>
+    <string name="note_color_pink">Pink</string>
     <string name="status_ready">Ready</string>
     <string name="status_add_todo_first">Add a todo first</string>
     <string name="status_placing_in_room">Placing in room</string>
@@ -41,7 +58,9 @@
     <string name="status_moved_note">Moved note</string>
     <string name="status_note_updated">Updated note</string>
     <string name="status_note_resized">Resized note</string>
+    <string name="status_note_style_updated">Updated note style</string>
     <string name="status_alarm_updated">Updated alarm</string>
+    <string name="status_alarm_snoozed">Snoozed alarm for %1$d minutes</string>
     <string name="status_alarm_triggered">Alarm: %1$s</string>
     <string name="status_invalid_alarm_time">Use a clock time like 09:30 or 6:45 PM</string>
     <string name="status_room_position_saved">Room position saved</string>

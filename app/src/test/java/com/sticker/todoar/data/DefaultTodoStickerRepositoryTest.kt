@@ -3,6 +3,8 @@ package com.sticker.todoar.data
 import com.sticker.todoar.data.db.TodoStickerDao
 import com.sticker.todoar.data.db.TodoStickerEntity
 import com.sticker.todoar.domain.StickerSpatialPose
+import com.sticker.todoar.domain.TodoStickerColor
+import com.sticker.todoar.domain.TodoStickerPriority
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -24,6 +26,8 @@ class DefaultTodoStickerRepositoryTest {
             placedAtMillis = 123L,
             anchorProvider = "jetpack_xr_anchor",
             anchorId = "anchor-1",
+            color = TodoStickerColor.BLUE,
+            priority = TodoStickerPriority.HIGH,
             activitySpacePose = StickerSpatialPose(
                 translationX = 1f,
                 translationY = 2f,
@@ -40,6 +44,8 @@ class DefaultTodoStickerRepositoryTest {
         assertEquals("Check laundry", savedSticker.text)
         assertEquals("jetpack_xr_anchor", savedSticker.anchorProvider)
         assertEquals("anchor-1", savedSticker.anchorId)
+        assertEquals(TodoStickerColor.BLUE, savedSticker.color)
+        assertEquals(TodoStickerPriority.HIGH, savedSticker.priority)
         assertEquals(1f, savedSticker.activitySpacePose?.translationX ?: 0f, 0.001f)
         assertEquals(-3f, savedSticker.activitySpacePose?.translationZ ?: 0f, 0.001f)
         assertNotNull(savedSticker.dueAtMillis)
@@ -85,6 +91,29 @@ class DefaultTodoStickerRepositoryTest {
         repository.updateSizeScale(sticker.id, 1.45f)
 
         assertEquals(1.45f, repository.observeStickers().first().single().sizeScale, 0.001f)
+    }
+
+    @Test
+    fun updateStyleChangesStoredColorAndPriority() = runTest {
+        val repository: TodoStickerRepository = DefaultTodoStickerRepository(FakeTodoStickerDao())
+        val sticker = repository.addSticker(text = "Style me")
+
+        repository.updateStyle(sticker.id, TodoStickerColor.GREEN, TodoStickerPriority.HIGH)
+
+        val savedSticker = repository.observeStickers().first().single()
+        assertEquals(TodoStickerColor.GREEN, savedSticker.color)
+        assertEquals(TodoStickerPriority.HIGH, savedSticker.priority)
+    }
+
+    @Test
+    fun markAlarmTriggeredStoresCurrentDueTime() = runTest {
+        val repository: TodoStickerRepository = DefaultTodoStickerRepository(FakeTodoStickerDao())
+        val dueAtMillis = System.currentTimeMillis() + 60_000L
+        val sticker = repository.addSticker(text = "Alarm", dueAtMillis = dueAtMillis)
+
+        repository.markAlarmTriggered(sticker.id)
+
+        assertEquals(dueAtMillis, repository.observeStickers().first().single().lastAlarmTriggeredAtMillis)
     }
 
     @Test
@@ -151,6 +180,39 @@ private class FakeTodoStickerDao : TodoStickerDao {
             stickers[index] = stickers[index].copy(
                 timerDurationMillis = null,
                 dueAtMillis = dueAtMillis,
+                lastAlarmTriggeredAtMillis = null,
+                updatedAtMillis = updatedAtMillis
+            )
+            publish()
+        }
+    }
+
+    override suspend fun updateStyle(
+        id: Long,
+        colorKey: String,
+        priority: Int,
+        updatedAtMillis: Long
+    ) {
+        val index = stickers.indexOfFirst { it.id == id }
+        if (index >= 0) {
+            stickers[index] = stickers[index].copy(
+                colorKey = colorKey,
+                priority = priority,
+                updatedAtMillis = updatedAtMillis
+            )
+            publish()
+        }
+    }
+
+    override suspend fun updateLastAlarmTriggered(
+        id: Long,
+        lastAlarmTriggeredAtMillis: Long,
+        updatedAtMillis: Long
+    ) {
+        val index = stickers.indexOfFirst { it.id == id }
+        if (index >= 0) {
+            stickers[index] = stickers[index].copy(
+                lastAlarmTriggeredAtMillis = lastAlarmTriggeredAtMillis,
                 updatedAtMillis = updatedAtMillis
             )
             publish()

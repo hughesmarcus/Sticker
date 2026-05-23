@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [TodoStickerEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class StickerDatabase : RoomDatabase() {
@@ -39,6 +39,14 @@ abstract class StickerDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE todo_stickers ADD COLUMN activitySpaceRotationY REAL")
                 db.execSQL("ALTER TABLE todo_stickers ADD COLUMN activitySpaceRotationZ REAL")
                 db.execSQL("ALTER TABLE todo_stickers ADD COLUMN activitySpaceRotationW REAL")
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE todo_stickers ADD COLUMN colorKey TEXT NOT NULL DEFAULT 'yellow'")
+                db.execSQL("ALTER TABLE todo_stickers ADD COLUMN priority INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE todo_stickers ADD COLUMN lastAlarmTriggeredAtMillis INTEGER")
             }
         }
     }

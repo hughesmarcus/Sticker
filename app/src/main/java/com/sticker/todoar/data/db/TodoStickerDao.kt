@@ -13,6 +13,7 @@ interface TodoStickerDao {
         SELECT * FROM todo_stickers
         ORDER BY
             done ASC,
+            priority DESC,
             CASE WHEN dueAtMillis IS NULL THEN 1 ELSE 0 END ASC,
             dueAtMillis ASC,
             createdAtMillis DESC
@@ -37,11 +38,42 @@ interface TodoStickerDao {
         UPDATE todo_stickers
         SET timerDurationMillis = NULL,
             dueAtMillis = :dueAtMillis,
+            lastAlarmTriggeredAtMillis = NULL,
             updatedAtMillis = :updatedAtMillis
         WHERE id = :id
         """
     )
     suspend fun updateAlarm(id: Long, dueAtMillis: Long?, updatedAtMillis: Long)
+
+    @Query(
+        """
+        UPDATE todo_stickers
+        SET colorKey = :colorKey,
+            priority = :priority,
+            updatedAtMillis = :updatedAtMillis
+        WHERE id = :id
+        """
+    )
+    suspend fun updateStyle(
+        id: Long,
+        colorKey: String,
+        priority: Int,
+        updatedAtMillis: Long
+    )
+
+    @Query(
+        """
+        UPDATE todo_stickers
+        SET lastAlarmTriggeredAtMillis = :lastAlarmTriggeredAtMillis,
+            updatedAtMillis = :updatedAtMillis
+        WHERE id = :id
+        """
+    )
+    suspend fun updateLastAlarmTriggered(
+        id: Long,
+        lastAlarmTriggeredAtMillis: Long,
+        updatedAtMillis: Long
+    )
 
     @Query(
         """

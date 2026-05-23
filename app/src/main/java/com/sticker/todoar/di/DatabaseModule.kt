@@ -27,6 +27,7 @@ object DatabaseModule {
             .addMigrations(StickerDatabase.MIGRATION_1_2)
             .addMigrations(StickerDatabase.MIGRATION_2_3)
             .addMigrations(StickerDatabase.MIGRATION_3_4)
+            .addMigrations(StickerDatabase.MIGRATION_4_5)
             .build()
 
     @Provides

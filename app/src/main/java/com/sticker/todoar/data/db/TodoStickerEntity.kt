@@ -4,6 +4,8 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.sticker.todoar.domain.StickerSpatialPose
 import com.sticker.todoar.domain.TodoSticker
+import com.sticker.todoar.domain.TodoStickerColor
+import com.sticker.todoar.domain.TodoStickerPriority
 
 @Entity(tableName = "todo_stickers")
 data class TodoStickerEntity(
@@ -17,6 +19,9 @@ data class TodoStickerEntity(
     val anchorProvider: String? = null,
     val anchorId: String? = null,
     val sizeScale: Float = 1f,
+    val colorKey: String = TodoStickerColor.DEFAULT.key,
+    val priority: Int = TodoStickerPriority.DEFAULT.value,
+    val lastAlarmTriggeredAtMillis: Long? = null,
     val activitySpaceTranslationX: Float? = null,
     val activitySpaceTranslationY: Float? = null,
     val activitySpaceTranslationZ: Float? = null,
@@ -38,6 +43,9 @@ data class TodoStickerEntity(
             anchorProvider = anchorProvider,
             anchorId = anchorId,
             sizeScale = sizeScale,
+            color = TodoStickerColor.fromKey(colorKey),
+            priority = TodoStickerPriority.fromValue(priority),
+            lastAlarmTriggeredAtMillis = lastAlarmTriggeredAtMillis,
             activitySpacePose = toActivitySpacePose(),
             createdAtMillis = createdAtMillis,
             updatedAtMillis = updatedAtMillis

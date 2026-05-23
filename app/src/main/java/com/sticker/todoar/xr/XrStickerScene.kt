@@ -4,7 +4,11 @@ import android.util.Log
 import android.text.format.DateFormat
 import androidx.activity.ComponentActivity
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -34,6 +39,8 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -69,8 +76,11 @@ import androidx.xr.scenecore.Space
 import androidx.xr.scenecore.scene
 import androidx.xr.runtime.math.FloatSize3d
 import com.sticker.todoar.R
+import com.sticker.todoar.domain.StickerPinQuality
 import com.sticker.todoar.domain.StickerSpatialPose
 import com.sticker.todoar.domain.TodoSticker
+import com.sticker.todoar.domain.TodoStickerColor
+import com.sticker.todoar.domain.TodoStickerPriority
 import java.util.UUID
 import java.util.Date
 import kotlinx.coroutines.CancellationException
@@ -105,6 +115,8 @@ class XrStickerScene(
     private val onUpdateStickerText: (Long, String) -> Unit,
     private val onUpdateStickerAlarm: (Long, String) -> Unit,
     private val onUpdateStickerSize: (Long, Float) -> Unit,
+    private val onUpdateStickerStyle: (Long, TodoStickerColor, TodoStickerPriority) -> Unit,
+    private val onSnoozeSticker: (Long, Int) -> Unit,
     private val onActivitySpacePoseUpdated: (Long, StickerSpatialPose) -> Unit,
     private val onAnchorUpdated: (Long, String) -> Unit,
     private val onStatus: (Int) -> Unit
@@ -493,6 +505,10 @@ class XrStickerScene(
                             onUpdateStickerAlarm(stickerState.value.id, alarmTimeText)
                         },
                         onResize = { sizeScale -> onUpdateStickerSize(stickerState.value.id, sizeScale) },
+                        onUpdateStyle = { color, priority ->
+                            onUpdateStickerStyle(stickerState.value.id, color, priority)
+                        },
+                        onSnooze = { minutes -> onSnoozeSticker(stickerState.value.id, minutes) },
                         onDone = { onToggleSticker(stickerState.value.id) },
                         onDelete = { onDeleteSticker(stickerState.value.id) }
                     )
@@ -671,6 +687,8 @@ private const val DEFAULT_NOTE_SIZE_SCALE = 1f
 private const val MIN_NOTE_SIZE_SCALE = 0.7f
 private const val MAX_NOTE_SIZE_SCALE = 1.8f
 private const val NOTE_SIZE_STEP = 0.15f
+private const val SNOOZE_SHORT_MINUTES = 5
+private const val SNOOZE_LONG_MINUTES = 15
 
 private fun TodoSticker.normalizedSizeScale(): Float =
     if (sizeScale.isFinite()) {
@@ -699,11 +717,18 @@ private fun SpatialStickerCard(
     onUpdateText: (String) -> Unit,
     onUpdateAlarm: (String) -> Unit,
     onResize: (Float) -> Unit,
+    onUpdateStyle: (TodoStickerColor, TodoStickerPriority) -> Unit,
+    onSnooze: (Int) -> Unit,
     onDone: () -> Unit,
     onDelete: () -> Unit
 ) {
     val expired = sticker.isTimerExpired(nowMillis)
     val timerText = sticker.timerText(nowMillis)
+    val metadataText = listOfNotNull(
+        timerText,
+        sticker.priority.labelText(),
+        sticker.pinQuality.labelText()
+    ).joinToString(stringResource(R.string.metadata_separator))
     val sizeScale = sticker.normalizedSizeScale()
     var editing by remember(sticker.id) { mutableStateOf(false) }
     var editingText by remember(sticker.id) { mutableStateOf(sticker.text) }
@@ -711,12 +736,16 @@ private fun SpatialStickerCard(
     var editingAlarmTimeText by remember(sticker.id, existingAlarmTimeText) {
         mutableStateOf(existingAlarmTimeText)
     }
+    var selectedColor by remember(sticker.id) { mutableStateOf(sticker.color) }
+    var selectedPriority by remember(sticker.id) { mutableStateOf(sticker.priority) }
     val defaultNoteText = stringResource(R.string.default_note_text)
 
-    LaunchedEffect(sticker.text, sticker.dueAtMillis, editing) {
+    LaunchedEffect(sticker.text, sticker.dueAtMillis, sticker.color, sticker.priority, editing) {
         if (!editing) {
             editingText = sticker.text
             editingAlarmTimeText = existingAlarmTimeText
+            selectedColor = sticker.color
+            selectedPriority = sticker.priority
         }
     }
 
@@ -727,7 +756,7 @@ private fun SpatialStickerCard(
             containerColor = when {
                 sticker.done -> Color(0xFFDDE1DA)
                 expired -> Color(0xFFFFC7B8)
-                else -> Color(0xFFFFE067)
+                else -> sticker.color.backgroundColor()
             }
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -758,6 +787,12 @@ private fun SpatialStickerCard(
                         label = { Text(stringResource(R.string.label_alarm_time)) },
                         placeholder = { Text(stringResource(R.string.placeholder_alarm_time)) }
                     )
+                    SpatialStickerStyleControls(
+                        selectedColor = selectedColor,
+                        selectedPriority = selectedPriority,
+                        onColorSelected = { selectedColor = it },
+                        onPrioritySelected = { selectedPriority = it }
+                    )
                 }
             } else {
                 Column(modifier = Modifier.weight(1f)) {
@@ -780,14 +815,35 @@ private fun SpatialStickerCard(
                         fontWeight = FontWeight.Bold,
                         lineHeight = 22.sp
                     )
-                    if (timerText != null) {
+                    if (metadataText.isNotBlank()) {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = timerText,
+                            text = metadataText,
                             color = if (expired) Color(0xFF8B2F1D) else Color(0xFF586053),
                             fontSize = 13.sp,
                             fontWeight = if (expired) FontWeight.Bold else FontWeight.Normal
                         )
+                    }
+                    if (expired) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                                onClick = { onSnooze(SNOOZE_SHORT_MINUTES) }
+                            ) {
+                                Text(stringResource(R.string.action_snooze_5), fontSize = 11.sp)
+                            }
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                                onClick = { onSnooze(SNOOZE_LONG_MINUTES) }
+                            ) {
+                                Text(stringResource(R.string.action_snooze_15), fontSize = 11.sp)
+                            }
+                        }
                     }
                 }
             }
@@ -828,6 +884,8 @@ private fun SpatialStickerCard(
                         onClick = {
                             editingText = sticker.text
                             editingAlarmTimeText = existingAlarmTimeText
+                            selectedColor = sticker.color
+                            selectedPriority = sticker.priority
                             editing = false
                         }
                     ) {
@@ -838,6 +896,7 @@ private fun SpatialStickerCard(
                         onClick = {
                             onUpdateText(editingText.ifBlank { defaultNoteText })
                             onUpdateAlarm(editingAlarmTimeText)
+                            onUpdateStyle(selectedColor, selectedPriority)
                             editing = false
                         }
                     ) {
@@ -877,6 +936,56 @@ private fun SpatialStickerCard(
 }
 
 @Composable
+private fun SpatialStickerStyleControls(
+    selectedColor: TodoStickerColor,
+    selectedPriority: TodoStickerPriority,
+    onColorSelected: (TodoStickerColor) -> Unit,
+    onPrioritySelected: (TodoStickerPriority) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TodoStickerColor.entries.forEach { color ->
+                val label = color.labelText()
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .background(color.backgroundColor(), RoundedCornerShape(7.dp))
+                        .border(
+                            width = if (color == selectedColor) 3.dp else 1.dp,
+                            color = if (color == selectedColor) Color(0xFF1F2320) else Color(0xFF7B8177),
+                            shape = RoundedCornerShape(7.dp)
+                        )
+                        .semantics { contentDescription = label }
+                        .clickable { onColorSelected(color) }
+                )
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TodoStickerPriority.entries.forEach { priority ->
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    onClick = { onPrioritySelected(priority) },
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = priority.shortLabelText(),
+                        fontSize = 10.sp,
+                        fontWeight = if (priority == selectedPriority) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun TodoSticker.timerText(nowMillis: Long): String? {
     val dueAt = dueAtMillis ?: return null
     if (done) return stringResource(R.string.alarm_complete)
@@ -894,6 +1003,48 @@ private fun TodoSticker.timerText(nowMillis: Long): String? {
 @Composable
 private fun Long.toClockTimeText(): String =
     DateFormat.getTimeFormat(LocalContext.current).format(Date(this))
+
+@Composable
+private fun StickerPinQuality.labelText(): String? =
+    when (this) {
+        StickerPinQuality.ROOM -> stringResource(R.string.pin_quality_room)
+        StickerPinQuality.SESSION -> stringResource(R.string.pin_quality_session)
+        StickerPinQuality.FALLBACK -> stringResource(R.string.pin_quality_fallback)
+        StickerPinQuality.UNPLACED -> null
+    }
+
+@Composable
+private fun TodoStickerPriority.labelText(): String =
+    when (this) {
+        TodoStickerPriority.LOW -> stringResource(R.string.priority_low)
+        TodoStickerPriority.NORMAL -> stringResource(R.string.priority_normal)
+        TodoStickerPriority.HIGH -> stringResource(R.string.priority_high)
+    }
+
+@Composable
+private fun TodoStickerPriority.shortLabelText(): String =
+    when (this) {
+        TodoStickerPriority.LOW -> stringResource(R.string.priority_low_short)
+        TodoStickerPriority.NORMAL -> stringResource(R.string.priority_normal_short)
+        TodoStickerPriority.HIGH -> stringResource(R.string.priority_high_short)
+    }
+
+@Composable
+private fun TodoStickerColor.labelText(): String =
+    when (this) {
+        TodoStickerColor.YELLOW -> stringResource(R.string.note_color_yellow)
+        TodoStickerColor.BLUE -> stringResource(R.string.note_color_blue)
+        TodoStickerColor.GREEN -> stringResource(R.string.note_color_green)
+        TodoStickerColor.PINK -> stringResource(R.string.note_color_pink)
+    }
+
+private fun TodoStickerColor.backgroundColor(): Color =
+    when (this) {
+        TodoStickerColor.YELLOW -> Color(0xFFFFE067)
+        TodoStickerColor.BLUE -> Color(0xFFBFDDF8)
+        TodoStickerColor.GREEN -> Color(0xFFCDECCF)
+        TodoStickerColor.PINK -> Color(0xFFFFC9DE)
+    }
 
 @Composable
 private fun Long.formatDuration(): String {

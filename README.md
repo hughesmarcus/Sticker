@@ -1,6 +1,6 @@
 # Sticker
 
-Sticker is an Android XR todo app for placing editable sticky notes around your house. Notes can be spawned in front of you, dragged into place, resized, edited, given a clock-based alarm, and restored after closing the app when XR anchor persistence is available.
+Sticker is an Android XR todo app for placing editable sticky notes around your house. Notes can be spawned in front of you, dragged into place, resized, recolored, prioritized, edited, given a clock-based alarm, snoozed, and restored after closing the app when XR anchor persistence is available.
 
 The app is built for Galaxy XR-style Android XR devices with Jetpack XR APIs. It does not use the mobile Google Play Services AR runtime or `com.google.ar:core`.
 
@@ -11,10 +11,12 @@ The app is built for Galaxy XR-style Android XR devices with Jetpack XR APIs. It
 - Drag notes around the room with SceneCore movable spatial panels.
 - Resize both placed notes and the main control panel.
 - Minimize the main panel into a small `Open` button.
-- Edit note text and alarm time from the main panel or the spatial note.
+- Edit note text, alarm time, color, and priority from the main panel or the spatial note.
 - Use clock-based alarms such as `09:30` or `6:45 PM`.
 - Play an alarm tone only when a note becomes due.
-- Save notes, completion state, alarms, note size, anchor ids, and fallback poses in Room.
+- Snooze due alarms for 5 or 15 minutes.
+- Show pin quality so you can tell whether a note is room-pinned, session-pinned, or restored from fallback placement.
+- Save notes, completion state, alarms, alarm trigger state, note color, priority, note size, anchor ids, and fallback poses in Room.
 - Persist room placement with ARCore for Jetpack XR local anchors when tracking/runtime support is available.
 - Fall back to activity-space placement and retry anchor promotion when persistent room anchoring is not ready.
 

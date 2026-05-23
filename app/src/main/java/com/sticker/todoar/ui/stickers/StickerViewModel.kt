@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.sticker.todoar.R
 import com.sticker.todoar.data.TodoStickerRepository
 import com.sticker.todoar.domain.StickerSpatialPose
+import com.sticker.todoar.domain.TodoStickerColor
+import com.sticker.todoar.domain.TodoStickerPriority
 import com.sticker.todoar.ui.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.text.SimpleDateFormat
@@ -26,6 +28,8 @@ class StickerViewModel @Inject constructor(
 ) : ViewModel() {
     private val draftText = MutableStateFlow("")
     private val selectedAlarmTimeText = MutableStateFlow(defaultAlarmTimeText())
+    private val selectedColor = MutableStateFlow(TodoStickerColor.DEFAULT)
+    private val selectedPriority = MutableStateFlow(TodoStickerPriority.DEFAULT)
     private val status = MutableStateFlow(STATUS_READY)
     private val clock: Flow<Long> = flow {
         while (true) {
@@ -37,9 +41,11 @@ class StickerViewModel @Inject constructor(
     private val editorState = combine(
         draftText,
         selectedAlarmTimeText,
+        selectedColor,
+        selectedPriority,
         status
-    ) { draft, alarmTimeText, message ->
-        EditorState(draft, alarmTimeText, message)
+    ) { draft, alarmTimeText, color, priority, message ->
+        EditorState(draft, alarmTimeText, color, priority, message)
     }
 
     val uiState = combine(
@@ -50,6 +56,8 @@ class StickerViewModel @Inject constructor(
         StickerUiState(
             draftText = editor.draftText,
             selectedAlarmTimeText = editor.selectedAlarmTimeText,
+            selectedColor = editor.selectedColor,
+            selectedPriority = editor.selectedPriority,
             stickers = stickers,
             status = statusText(
                 message = editor.status,
@@ -77,6 +85,14 @@ class StickerViewModel @Inject constructor(
         selectedAlarmTimeText.value = ""
     }
 
+    fun onDraftColorChanged(color: TodoStickerColor) {
+        selectedColor.value = color
+    }
+
+    fun onDraftPriorityChanged(priority: TodoStickerPriority) {
+        selectedPriority.value = priority
+    }
+
     fun onPlaceRequested(text: String, fallbackText: String): RoomPlacementRequest? {
         val trimmedText = text.trim().ifBlank { fallbackText }
         val alarmDueAt = resolveAlarmDueAtMillisOrShowError(selectedAlarmTimeText.value) ?: return null
@@ -85,7 +101,9 @@ class StickerViewModel @Inject constructor(
         setStatus(UiText.resource(R.string.status_placing_in_room))
         return RoomPlacementRequest(
             text = trimmedText,
-            dueAtMillis = alarmDueAt.millis
+            dueAtMillis = alarmDueAt.millis,
+            color = selectedColor.value,
+            priority = selectedPriority.value
         )
     }
 
@@ -98,6 +116,8 @@ class StickerViewModel @Inject constructor(
         dueAtMillis: Long?,
         anchorProvider: String,
         anchorId: String,
+        color: TodoStickerColor,
+        priority: TodoStickerPriority,
         activitySpacePose: StickerSpatialPose?
     ) {
         viewModelScope.launch {
@@ -107,6 +127,8 @@ class StickerViewModel @Inject constructor(
                 placedAtMillis = System.currentTimeMillis(),
                 anchorProvider = anchorProvider,
                 anchorId = anchorId,
+                color = color,
+                priority = priority,
                 activitySpacePose = activitySpacePose
             )
             draftText.value = ""
@@ -144,7 +166,13 @@ class StickerViewModel @Inject constructor(
         }
     }
 
-    fun onStickerEdited(id: Long, text: String, alarmTimeText: String) {
+    fun onStickerEdited(
+        id: Long,
+        text: String,
+        alarmTimeText: String,
+        color: TodoStickerColor,
+        priority: TodoStickerPriority
+    ) {
         val trimmedText = text.trim()
         if (trimmedText.isBlank()) {
             setStatus(UiText.resource(R.string.status_add_todo_first))
@@ -155,6 +183,7 @@ class StickerViewModel @Inject constructor(
         viewModelScope.launch {
             repository.updateText(id, trimmedText)
             repository.updateAlarm(id, alarmDueAt.millis)
+            repository.updateStyle(id, color, priority)
             setStatus(UiText.resource(R.string.status_note_updated))
         }
     }
@@ -175,8 +204,29 @@ class StickerViewModel @Inject constructor(
         }
     }
 
-    fun onAlarmTriggered(noteText: String) {
-        setStatus(UiText.resource(R.string.status_alarm_triggered, noteText))
+    fun onStickerStyleChanged(
+        id: Long,
+        color: TodoStickerColor,
+        priority: TodoStickerPriority
+    ) {
+        viewModelScope.launch {
+            repository.updateStyle(id, color, priority)
+            setStatus(UiText.resource(R.string.status_note_style_updated))
+        }
+    }
+
+    fun onStickerSnoozed(id: Long, minutes: Int) {
+        viewModelScope.launch {
+            repository.updateAlarm(id, System.currentTimeMillis() + minutes * 60_000L)
+            setStatus(UiText.resource(R.string.status_alarm_snoozed, minutes))
+        }
+    }
+
+    fun onAlarmTriggered(id: Long, noteText: String) {
+        viewModelScope.launch {
+            repository.markAlarmTriggered(id)
+            setStatus(UiText.resource(R.string.status_alarm_triggered, noteText))
+        }
     }
 
     fun onXrStatusChanged(message: UiText) {
@@ -217,7 +267,9 @@ class StickerViewModel @Inject constructor(
                 text = trimmedText,
                 dueAtMillis = alarmDueAt.millis,
                 placedAtMillis = null,
-                anchorProvider = null
+                anchorProvider = null,
+                color = selectedColor.value,
+                priority = selectedPriority.value
             )
             draftText.value = ""
             setStatus(UiText.resource(R.string.status_saved))
@@ -291,6 +343,8 @@ class StickerViewModel @Inject constructor(
     private data class EditorState(
         val draftText: String,
         val selectedAlarmTimeText: String,
+        val selectedColor: TodoStickerColor,
+        val selectedPriority: TodoStickerPriority,
         val status: UiText
     )
 

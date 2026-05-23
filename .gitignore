@@ -1,12 +1,37 @@
+# Local project instructions
+AGENTS.md
+**/AGENTS.md
+
+# Local IDE and machine state
 .gradle/
 .idea/
+.kotlin/
 *.iml
 local.properties
+
+# Build outputs
 build/
+app/build/
 META-INF/
 captures/
 .externalNativeBuild/
 .cxx/
-app/build/
+*.apk
+*.ap_
+*.aab
+
+# Local Android CLI state
 tools/android-cli/android.exe
 tools/android-user-home/
+
+# Private environment and signing material
+.env
+.env.*
+*.keystore
+*.jks
+*.p12
+key.properties
+keystore.properties
+secrets.properties
+google-services.json
+service-account*.json

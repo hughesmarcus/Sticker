@@ -8,7 +8,9 @@ import com.sticker.todoar.domain.TodoStickerColor
 import com.sticker.todoar.domain.TodoStickerPriority
 import com.sticker.todoar.ui.UiText
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runCurrent
@@ -28,6 +30,7 @@ class StickerViewModelTest {
         val viewModel = StickerViewModel(FakeTodoStickerRepository())
 
         assertEquals(true, viewModel.uiState.value.isLoading)
+        assertEquals(false, viewModel.uiState.value.isError)
         assertEquals(R.string.status_loading_stickers, viewModel.uiState.value.statusResId())
 
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -37,6 +40,20 @@ class StickerViewModelTest {
 
         assertEquals(false, viewModel.uiState.value.isLoading)
         assertEquals(R.string.status_ready, viewModel.uiState.value.statusResId())
+    }
+
+    @Test
+    fun repositoryFailureShowsErrorState() = runTest {
+        val viewModel = StickerViewModel(FailingTodoStickerRepository())
+
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect {}
+        }
+        runCurrent()
+
+        assertEquals(false, viewModel.uiState.value.isLoading)
+        assertEquals(true, viewModel.uiState.value.isError)
+        assertEquals(R.string.status_stickers_load_failed, viewModel.uiState.value.statusResId())
     }
 
     @Test
@@ -322,6 +339,50 @@ class StickerViewModelTest {
 
     private fun StickerUiState.statusResId(): Int =
         (status as UiText.Resource).resId
+}
+
+private class FailingTodoStickerRepository : TodoStickerRepository {
+    override fun observeStickers(): Flow<List<TodoSticker>> = flow {
+        throw IllegalStateException("Could not read stickers")
+    }
+
+    override suspend fun addSticker(
+        text: String,
+        timerDurationMillis: Long?,
+        dueAtMillis: Long?,
+        placedAtMillis: Long?,
+        anchorProvider: String?,
+        anchorId: String?,
+        color: TodoStickerColor,
+        priority: TodoStickerPriority,
+        activitySpacePose: StickerSpatialPose?
+    ): TodoSticker {
+        error("Not used")
+    }
+
+    override suspend fun toggleDone(id: Long) = error("Not used")
+
+    override suspend fun updateText(id: Long, text: String) = error("Not used")
+
+    override suspend fun updateAlarm(id: Long, dueAtMillis: Long?) = error("Not used")
+
+    override suspend fun updateAnchor(id: Long, anchorProvider: String, anchorId: String) =
+        error("Not used")
+
+    override suspend fun updateSizeScale(id: Long, sizeScale: Float) = error("Not used")
+
+    override suspend fun updateStyle(
+        id: Long,
+        color: TodoStickerColor,
+        priority: TodoStickerPriority
+    ) = error("Not used")
+
+    override suspend fun markAlarmTriggered(id: Long) = error("Not used")
+
+    override suspend fun updateActivitySpacePose(id: Long, pose: StickerSpatialPose) =
+        error("Not used")
+
+    override suspend fun deleteSticker(id: Long) = error("Not used")
 }
 
 private class FakeTodoStickerRepository : TodoStickerRepository {

@@ -51,6 +51,7 @@
     <string name="note_color_green">Green</string>
     <string name="note_color_pink">Pink</string>
     <string name="status_loading_stickers">Loading stickers</string>
+    <string name="status_stickers_load_failed">Could not load stickers</string>
     <string name="status_ready">Ready</string>
     <string name="status_add_todo_first">Add a todo first</string>
     <string name="status_placing_in_room">Placing in room</string>

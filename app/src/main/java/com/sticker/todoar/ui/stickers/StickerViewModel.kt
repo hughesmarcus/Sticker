@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.sticker.todoar.R
 import com.sticker.todoar.data.TodoStickerRepository
 import com.sticker.todoar.domain.StickerSpatialPose
+import com.sticker.todoar.domain.TodoSticker
 import com.sticker.todoar.domain.TodoStickerColor
 import com.sticker.todoar.domain.TodoStickerPriority
 import com.sticker.todoar.ui.UiText
@@ -17,8 +18,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -48,30 +52,57 @@ class StickerViewModel @Inject constructor(
         EditorState(draft, alarmTimeText, color, priority, message)
     }
 
+    private val stickerLoadState = repository.observeStickers()
+        .map<List<TodoSticker>, StickerLoadState> { stickers ->
+            StickerLoadState.Success(stickers)
+        }
+        .onStart {
+            emit(StickerLoadState.Loading)
+        }
+        .catch {
+            emit(StickerLoadState.Error(UiText.resource(R.string.status_stickers_load_failed)))
+        }
+
     val uiState = combine(
-        repository.observeStickers(),
+        stickerLoadState,
         editorState,
         clock
-    ) { stickers, editor, nowMillis ->
-        StickerUiState(
-            isLoading = false,
-            draftText = editor.draftText,
-            selectedAlarmTimeText = editor.selectedAlarmTimeText,
-            selectedColor = editor.selectedColor,
-            selectedPriority = editor.selectedPriority,
-            stickers = stickers,
-            status = statusText(
-                message = editor.status,
-                total = stickers.size,
-                open = stickers.count { !it.done },
-                expired = stickers.count { it.isTimerExpired(nowMillis) }
-            ),
-            nowMillis = nowMillis
-        )
+    ) { loadState, editor, nowMillis ->
+        when (loadState) {
+            StickerLoadState.Loading -> StickerUiState.Loading(
+                draftText = editor.draftText,
+                selectedAlarmTimeText = editor.selectedAlarmTimeText,
+                selectedColor = editor.selectedColor,
+                selectedPriority = editor.selectedPriority,
+                nowMillis = nowMillis
+            )
+            is StickerLoadState.Success -> StickerUiState.Success(
+                draftText = editor.draftText,
+                selectedAlarmTimeText = editor.selectedAlarmTimeText,
+                selectedColor = editor.selectedColor,
+                selectedPriority = editor.selectedPriority,
+                stickers = loadState.stickers,
+                status = statusText(
+                    message = editor.status,
+                    total = loadState.stickers.size,
+                    open = loadState.stickers.count { !it.done },
+                    expired = loadState.stickers.count { it.isTimerExpired(nowMillis) }
+                ),
+                nowMillis = nowMillis
+            )
+            is StickerLoadState.Error -> StickerUiState.Error(
+                message = loadState.message,
+                draftText = editor.draftText,
+                selectedAlarmTimeText = editor.selectedAlarmTimeText,
+                selectedColor = editor.selectedColor,
+                selectedPriority = editor.selectedPriority,
+                nowMillis = nowMillis
+            )
+        }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = StickerUiState(
+        initialValue = StickerUiState.Loading(
             selectedAlarmTimeText = selectedAlarmTimeText.value
         )
     )
@@ -359,6 +390,18 @@ class StickerViewModel @Inject constructor(
     private data class AlarmDueAt(
         val millis: Long?
     )
+
+    private sealed interface StickerLoadState {
+        data object Loading : StickerLoadState
+
+        data class Success(
+            val stickers: List<TodoSticker>
+        ) : StickerLoadState
+
+        data class Error(
+            val message: UiText
+        ) : StickerLoadState
+    }
 
     private companion object {
         val STATUS_READY = UiText.resource(R.string.status_ready)

@@ -629,6 +629,8 @@ private fun StickerScreen(
             )
             StickerList(
                 isLoading = state.isLoading,
+                isError = state.isError,
+                errorText = state.status,
                 stickers = state.stickers,
                 nowMillis = state.nowMillis,
                 onEditSticker = onEditSticker,
@@ -861,6 +863,8 @@ private fun AlarmTimeEditor(
 @Composable
 private fun StickerList(
     isLoading: Boolean,
+    isError: Boolean,
+    errorText: UiText,
     stickers: List<TodoSticker>,
     nowMillis: Long,
     onEditSticker: (Long, String, String, TodoStickerColor, TodoStickerPriority) -> Unit,
@@ -870,6 +874,11 @@ private fun StickerList(
 ) {
     if (isLoading) {
         LoadingStickerState()
+        return
+    }
+
+    if (isError) {
+        ErrorStickerState(errorText)
         return
     }
 
@@ -1103,6 +1112,25 @@ private fun EditStickerDialog(
             }
         }
     )
+}
+
+@Composable
+private fun ErrorStickerState(message: UiText) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(140.dp)
+            .background(Color.White, RoundedCornerShape(8.dp)),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = message.asString(),
+            color = Color(0xFF8B2F1D),
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
 }
 
 @Composable

@@ -98,11 +98,7 @@ internal fun StickerScreen(
                 fontSize = 15.sp
             )
             StickerList(
-                isLoading = state.isLoading,
-                isError = state.isError,
-                errorText = state.status,
-                stickers = state.stickers,
-                nowMillis = state.nowMillis,
+                state = state,
                 onEditSticker = onEditSticker,
                 onSnoozeSticker = onSnoozeSticker,
                 onToggleSticker = onToggleSticker,

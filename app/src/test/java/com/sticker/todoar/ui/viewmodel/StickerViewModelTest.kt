@@ -30,8 +30,8 @@ class StickerViewModelTest {
     fun initialStateShowsLoadingUntilStickersEmit() = runTest {
         val viewModel = StickerViewModel(FakeTodoStickerRepository())
 
-        assertEquals(true, viewModel.uiState.value.isLoading)
-        assertEquals(false, viewModel.uiState.value.isError)
+        assertEquals(true, viewModel.uiState.value is StickerUiState.Loading)
+        assertEquals(false, viewModel.uiState.value is StickerUiState.Error)
         assertEquals(R.string.status_loading_stickers, viewModel.uiState.value.statusResId())
 
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -39,7 +39,7 @@ class StickerViewModelTest {
         }
         runCurrent()
 
-        assertEquals(false, viewModel.uiState.value.isLoading)
+        assertEquals(false, viewModel.uiState.value is StickerUiState.Loading)
         assertEquals(R.string.status_ready, viewModel.uiState.value.statusResId())
     }
 
@@ -52,8 +52,8 @@ class StickerViewModelTest {
         }
         runCurrent()
 
-        assertEquals(false, viewModel.uiState.value.isLoading)
-        assertEquals(true, viewModel.uiState.value.isError)
+        assertEquals(false, viewModel.uiState.value is StickerUiState.Loading)
+        assertEquals(true, viewModel.uiState.value is StickerUiState.Error)
         assertEquals(R.string.status_stickers_load_failed, viewModel.uiState.value.statusResId())
     }
 

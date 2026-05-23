@@ -14,12 +14,6 @@ sealed interface StickerUiState {
     val status: UiText
     val nowMillis: Long
 
-    val isLoading: Boolean
-        get() = this is Loading
-
-    val isError: Boolean
-        get() = this is Error
-
     data class Loading(
         override val draftText: String = "",
         override val selectedAlarmTimeText: String = "",

@@ -313,7 +313,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
-                    if (state.isLoading) return@collect
+                    if (state is StickerUiState.Loading) return@collect
 
                     val expiredAlarmIds = state.stickers
                         .filter { sticker -> sticker.isTimerExpired(state.nowMillis) }
@@ -412,7 +412,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
-                    if (state.isLoading) return@collect
+                    if (state is StickerUiState.Loading) return@collect
 
                     xrStickerScene?.syncStickers(
                         stickers = state.stickers,

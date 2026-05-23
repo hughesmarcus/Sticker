@@ -1,4 +1,4 @@
-package com.sticker.todoar.ui
+package com.sticker.todoar.ui.sticker
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,7 +33,7 @@ import com.sticker.todoar.R
 import com.sticker.todoar.domain.TodoSticker
 import com.sticker.todoar.domain.TodoStickerColor
 import com.sticker.todoar.domain.TodoStickerPriority
-import com.sticker.todoar.ui.stickers.StickerItemViewModel
+import com.sticker.todoar.ui.viewmodel.StickerItemViewModel
 
 private const val SNOOZE_SHORT_MINUTES = 5
 private const val SNOOZE_LONG_MINUTES = 15

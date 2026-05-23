@@ -1,4 +1,4 @@
-package com.sticker.todoar.ui.stickers
+package com.sticker.todoar.ui.viewmodel
 
 import com.sticker.todoar.R
 import com.sticker.todoar.data.TodoStickerRepository
@@ -6,7 +6,8 @@ import com.sticker.todoar.domain.StickerSpatialPose
 import com.sticker.todoar.domain.TodoSticker
 import com.sticker.todoar.domain.TodoStickerColor
 import com.sticker.todoar.domain.TodoStickerPriority
-import com.sticker.todoar.ui.UiText
+import com.sticker.todoar.ui.model.StickerUiState
+import com.sticker.todoar.ui.model.UiText
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow

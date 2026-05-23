@@ -1,8 +1,10 @@
-package com.sticker.todoar.ui.stickers
+package com.sticker.todoar.ui.viewmodel
 
 import com.sticker.todoar.domain.TodoSticker
 import com.sticker.todoar.domain.TodoStickerColor
 import com.sticker.todoar.domain.TodoStickerPriority
+import com.sticker.todoar.ui.model.StickerEditRequest
+import com.sticker.todoar.ui.model.StickerItemUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -99,11 +101,3 @@ class StickerItemViewModel(
         return request
     }
 }
-
-data class StickerEditRequest(
-    val id: Long,
-    val text: String,
-    val alarmTimeText: String,
-    val color: TodoStickerColor,
-    val priority: TodoStickerPriority
-)

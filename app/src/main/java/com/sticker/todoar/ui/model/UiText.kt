@@ -1,4 +1,4 @@
-package com.sticker.todoar.ui
+package com.sticker.todoar.ui.model
 
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable

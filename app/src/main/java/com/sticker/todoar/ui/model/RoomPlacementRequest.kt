@@ -1,4 +1,4 @@
-package com.sticker.todoar.ui.stickers
+package com.sticker.todoar.ui.model
 
 import com.sticker.todoar.domain.TodoStickerColor
 import com.sticker.todoar.domain.TodoStickerPriority

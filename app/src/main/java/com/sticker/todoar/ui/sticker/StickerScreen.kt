@@ -1,4 +1,4 @@
-package com.sticker.todoar.ui
+package com.sticker.todoar.ui.sticker
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -15,7 +15,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sticker.todoar.domain.TodoStickerColor
 import com.sticker.todoar.domain.TodoStickerPriority
-import com.sticker.todoar.ui.stickers.StickerUiState
+import com.sticker.todoar.ui.model.StickerUiState
+import com.sticker.todoar.ui.model.asString
 
 internal const val DEFAULT_MAIN_PANEL_SCALE = 1f
 internal const val MIN_MAIN_PANEL_SCALE = 0.75f

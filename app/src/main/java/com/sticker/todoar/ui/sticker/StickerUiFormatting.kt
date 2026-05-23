@@ -1,4 +1,4 @@
-package com.sticker.todoar.ui
+package com.sticker.todoar.ui.sticker
 
 import android.text.format.DateFormat
 import androidx.compose.runtime.Composable

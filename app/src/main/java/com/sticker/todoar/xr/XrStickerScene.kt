@@ -81,7 +81,7 @@ import com.sticker.todoar.domain.StickerSpatialPose
 import com.sticker.todoar.domain.TodoSticker
 import com.sticker.todoar.domain.TodoStickerColor
 import com.sticker.todoar.domain.TodoStickerPriority
-import com.sticker.todoar.ui.stickers.StickerItemViewModel
+import com.sticker.todoar.ui.viewmodel.StickerItemViewModel
 import java.util.UUID
 import java.util.Date
 import kotlinx.coroutines.CancellationException

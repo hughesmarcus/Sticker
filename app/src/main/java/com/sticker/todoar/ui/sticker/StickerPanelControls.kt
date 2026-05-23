@@ -1,4 +1,4 @@
-package com.sticker.todoar.ui
+package com.sticker.todoar.ui.sticker
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

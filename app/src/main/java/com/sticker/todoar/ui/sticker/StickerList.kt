@@ -1,4 +1,4 @@
-package com.sticker.todoar.ui
+package com.sticker.todoar.ui.sticker
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +24,8 @@ import com.sticker.todoar.R
 import com.sticker.todoar.domain.TodoSticker
 import com.sticker.todoar.domain.TodoStickerColor
 import com.sticker.todoar.domain.TodoStickerPriority
+import com.sticker.todoar.ui.model.UiText
+import com.sticker.todoar.ui.model.asString
 
 @Composable
 internal fun StickerList(

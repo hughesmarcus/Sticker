@@ -1,4 +1,4 @@
-package com.sticker.todoar.ui
+package com.sticker.todoar.ui.sticker
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.sticker.todoar.R
 import com.sticker.todoar.domain.TodoStickerColor
 import com.sticker.todoar.domain.TodoStickerPriority
-import com.sticker.todoar.ui.stickers.StickerItemUiState
+import com.sticker.todoar.ui.model.StickerItemUiState
 
 @Composable
 internal fun EditStickerDialog(

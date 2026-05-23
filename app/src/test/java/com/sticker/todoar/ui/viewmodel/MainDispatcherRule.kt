@@ -1,4 +1,4 @@
-package com.sticker.todoar.ui.stickers
+package com.sticker.todoar.ui.viewmodel
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi

@@ -1,10 +1,9 @@
-package com.sticker.todoar.ui.stickers
+package com.sticker.todoar.ui.model
 
 import com.sticker.todoar.R
 import com.sticker.todoar.domain.TodoSticker
 import com.sticker.todoar.domain.TodoStickerColor
 import com.sticker.todoar.domain.TodoStickerPriority
-import com.sticker.todoar.ui.UiText
 
 sealed interface StickerUiState {
     val draftText: String

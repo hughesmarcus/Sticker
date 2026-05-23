@@ -1,4 +1,4 @@
-package com.sticker.todoar.ui.stickers
+package com.sticker.todoar.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,7 +8,9 @@ import com.sticker.todoar.domain.StickerSpatialPose
 import com.sticker.todoar.domain.TodoSticker
 import com.sticker.todoar.domain.TodoStickerColor
 import com.sticker.todoar.domain.TodoStickerPriority
-import com.sticker.todoar.ui.UiText
+import com.sticker.todoar.ui.model.RoomPlacementRequest
+import com.sticker.todoar.ui.model.StickerUiState
+import com.sticker.todoar.ui.model.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
